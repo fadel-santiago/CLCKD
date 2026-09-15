@@ -70,6 +70,9 @@ Each item is a concrete, testable capability. IDs reference the data model.
 - Fields: name (business or person), preferred contact name, email, phone,
   address, notes.
 - View linked projects and total outstanding (unpaid invoice) amount per client.
+- On create, a possible duplicate with the same name (case-insensitive) and
+  country is surfaced; saving it remains allowed after explicit user
+  confirmation.
 
 ### F2. Projects
 - List, create, edit, archive projects.
@@ -114,8 +117,11 @@ A single home page showing:
 - Quick numbers: counts + total amount due.
 
 ### F8. Cross-cutting
-- **CRUD + archive** for all entities (archive sets `archived_at`, preserves
-  data, hides from default lists; an "archived" filter reveals them).
+- Create, read, and update flows exist for all v1 domain records. Archive and
+  unarchive controls exist for the archive-protected records: `client`,
+  `project`, `shoot`, `task`, `deliverable`, and `invoice`. `quote` and
+  `shoot_equipment_item` have no independent archive state or controls and
+  follow their parent record's visibility.
 - **Deterministic sorting** and **pagination** on all list views.
 - **Full input validation** (per AGENTS.md §3) with human-readable field errors.
 - **Responsive layout**: comfortable on desktop (≥1024px) and tablet
@@ -163,9 +169,12 @@ to at least one test (see `docs/implementation-plan.md` acceptance tests).
    identical (SQLite at `<repo>/data/`).
 2. No record is lost after an unclean shutdown during a write (SQLite WAL
    journal mode is enabled; a corrupt-write test recovers cleanly).
-3. All five entity types can be created, read, updated, archived, and restored
-   through the UI and through the API/RSC routes; archived records are excluded
-   from default lists and included under "show archived."
+3. The six archive-protected record types—clients, projects, shoots, tasks,
+   deliverables, and invoices—can be created, read, updated, archived, and
+   restored through the UI and API/RSC routes. Archived records are absent
+   from default lists and present under "show archived." Quotes and equipment
+   checklist items can be created, read, and updated, but follow their parent
+   record's visibility and have no independent archive controls.
 
 ### Correctness
 4. A project cannot be created without a client reference; an orphan record is
