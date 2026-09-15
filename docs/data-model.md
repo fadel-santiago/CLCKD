@@ -113,7 +113,7 @@ product requires an *equipment checklist* — structured and checkable.)
 | Field | Type | Null | Notes |
 |---|---|---|---|
 | `id` | TEXT (ULID, PK) | no | |
-| `shoot_id` | TEXT, FK→`shoot.id` | no | `ON DELETE CASCADE` (deleting a shoot removes its checklist — this is the *only* cascade in v1, and it is scoped inside one entity). |
+| `shoot_id` | TEXT, FK→`shoot.id` | no | `ON DELETE CASCADE` is the only schema-level cascade; it protects checklist integrity during migrations and maintenance. v1 exposes no hard-delete operation. |
 | `item` | TEXT | no | Non-empty, trimmed, maxLength 200. |
 | `checked` | INTEGER (0/1, CHECK) | no | Default 0. |
 | `sort` | INTEGER | no | Default 0; user can reorder (up/down). |
@@ -264,7 +264,7 @@ Allowed v1 keys (the validator enforces the closed set):
 ```
 client 1 ──* project 1 ──* shoot        { project 1 ──1 quote }
                           │             project 1 ──* task
-                          │└──* shoot_equipment_item (CASCADE on shoot delete)
+                          │└──* shoot_equipment_item (schema-level ON DELETE CASCADE)
                           │
                           └──* invoice
                           └──* deliverable
@@ -274,9 +274,11 @@ task    1 ──1 (one project; v1 has no subtask)
 ```
 
 - No circular FKs.
-- CASCADE is used exactly once, on `shoot_equipment_item.shoot_id`, and only
-  *within a single logical entity* (deleting a shoot removes its checklist).
-  Every other FK is `RESTRICT`.
+- `ON DELETE CASCADE` is used exactly once, on
+  `shoot_equipment_item.shoot_id`, and only within a single logical entity.
+  It protects checklist integrity during migrations or explicit database
+  maintenance; v1 exposes no hard-delete UI, API, or service. Every other FK
+  is `RESTRICT`.
 - No `ON UPDATE` clauses. Any rename of a key is a service-layer update that
   rewrites dependents in the same transaction.
 
@@ -368,71 +370,65 @@ code (TEXT). Never float, never decimal, never string.** Concretely:
 
 ---
 
-## 6. Archive and deletion behavior
+## 6. Archive and retention behavior
 
-**Rule (AGENTS.md §9): v1 has no hard delete for the five core entities
-(client, project, shoot, task, deliverable, invoice, quote). The only
-user-visible "remove" action is "archive."**
+**Rule (AGENTS.md §9): v1 exposes no permanent hard-delete UI, API, service,
+administrator role, or generic deletion operation. Archive and unarchive are
+the only user-visible removal operations for archive-protected records.**
 
-### 6.1 Archive (the v1 delete)
+### 6.1 Archive and unarchive
 
-- Archive sets `archived_at = now(UTC)` on the row (and on dependent rows, see
-  below).
-- Archived rows are **excluded** from every default list, dashboard panel, and
-  dropdown. They are **included** in an explicit "show archived" view, in
+- Archive sets `archived_at = now(UTC)` on the record and on archive-protected
+  dependent records where the cascade rules below apply.
+- Archived records are **excluded** from every default list, dashboard panel,
+  and dropdown. They are **included** in an explicit "show archived" view, in
   search, and in exports.
-- Archive is **fully reversible** via `un-archive` (set `archived_at = NULL`
-  on the row; dependents are not re-un-archived automatically — the UI lists
-  them individually).
+- Archive is **fully reversible** via unarchive (`archived_at = NULL`).
+  Unarchiving a parent does not automatically unarchive its dependents; the UI
+  lists those records for individual restoration.
 - **Cascading archive** (v1):
-  - Archiving a `client` archives all its `project`s (and through them, their
-    children) — a single `un-archive(client)` un-archives the client only;
-    the user re-enables projects individually. This is documented and tested.
+  - Archiving a `client` archives its `project`s and their archive-protected
+    dependents. Unarchiving the client restores only the client; projects must
+    be restored individually.
   - Archiving a `project` archives its `shoot`s, `task`s, `deliverable`s,
-    and `invoice`s (and `shoot_equipment_item`s implicitly, since they
-    follow their `shoot`).
-  - Archiving a `shoot` archives its own `shoot_equipment_item`s (no cascade
-    to the project).
+    `quote`, and `invoice`s.
+  - Archiving a `shoot` does not archive the parent project. Its
+    `shoot_equipment_item` rows remain stored but follow the archived shoot's
+    visibility and are therefore absent from normal application views.
 
-### 6.2 Hard delete (v1: admin-only, gated)
+### 6.2 No permanent deletion in v1
 
-- A **separate** action "hard delete" exists in the UI *only* behind a
-  confirmation dialog that requires typing the client/project name.
-- A hard delete:
-  1. Refuses if any non-archived dependent rows exist (returns HTTP 409 with
-     the count and the dependent list).
-  2. Requires the row to be archived first (if not, an automatic archive
-     happens; the user must re-confirm).
-  3. Creates a **pre-delete snapshot** in `data/snapshots/<ulid>.json`
-     outside the git-ignored path — *inside `data/`, which is itself
-     git-ignored;* the *presence* of the file is logged to
-     `data/audit.log` (also git-ignored).
-  4. Then deletes the row via a **single, named** migration-style service call
-     (the SQL is explicit, parameterized, and unit-tested), not via a generic
-     "delete by predicate" path.
-- **CASCADE** (the one place in v1 hard delete is allowed to cascade):
-  `shoot_equipment_item` on `shoot` hard delete. All other FKs are
-  RESTRICT, so a hard delete that would orphan is refused.
+- Application code must not permanently delete user-managed records.
+- Every user-visible removal request for an archive-protected record must use
+  the archive behavior in §6.1.
+- The application registers no hard-delete route, service, UI control, or
+  administrator-only exception.
+- Schema-level `ON DELETE` actions are referential-integrity constraints for
+  migrations or explicit database maintenance. They are not reachable through
+  normal v1 application workflows.
 
 ### 6.3 Retention
 
-- v1 does not define a retention schedule or an auto-expiry. The only way
-  data goes away is: the user hard-deletes, or the OS deletes the file.
-- The `data/` directory is the app's responsibility: it is *owned* by the app
-  (created, locked with sensible permissions) and *documented* to the user
-  for backups.
+- v1 has no retention schedule or automatic expiry.
+- Archived records are retained indefinitely and remain available for
+  restoration.
+- Application-managed data can disappear only through storage failure or
+  deliberate filesystem/database maintenance outside the application.
+- The app owns the `data/` directory, creates it with sensible permissions,
+  and documents it so the user can make backups.
 
 ### 6.4 Test assertions (implementation-plan references these)
 
-- `T-ARCH-001`: archiving a project sets archived_at on project, its shoots,
-  tasks, deliverables, invoices; un-archiving the project does *not*
-  un-archive the children.
-- `T-ARCH-002`: hard-deleting a non-archived client with live projects
-  returns 409 and lists the dependents.
-- `T-ARCH-003`: hard-delete of a `shoot` cascades its equipment items; a
-  snapshot file exists at `data/snapshots/`; the row is gone.
-- `T-ARCH-004`: after `un-archive(client)`, its projects remain archived
-  (user must un-archive individually). Verified by list views.
+- `T-ARCH-001`: archiving a project sets `archived_at` on the project, its
+  shoots, tasks, deliverables, quote, and invoices. Equipment checklist rows
+  remain stored and hidden through their archived shoot. Unarchiving the
+  project does not automatically unarchive its archive-protected children.
+- `T-ARCH-002`: UI and route/service integration tests expose archive and
+  unarchive operations only; no permanent-delete operation is registered.
+- `T-ARCH-003`: archived records are absent from default lists, dashboard
+  panels, and dropdowns but appear in the explicit "show archived" view.
+- `T-ARCH-004`: after `unarchive(client)`, its projects remain archived and
+  must be restored individually. List-view tests verify this behavior.
 
 ---
 
@@ -463,6 +459,6 @@ Beyond what's listed per-entity, the schema enforces:
 - `project.client_reference` (external client ID for cross-system work).
 - `task.assigned_to` (v1 has no user).
 - `deliverable.file_sha256` (v1 has no file).
-- Audit log table (v1 uses `data/audit.log` text; v1.1 may be a table).
+- Optional archive/unarchive audit history (not included in v1).
 
 Any addition requires a plan revision + a paired migration.
