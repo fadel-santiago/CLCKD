@@ -7,16 +7,26 @@ AGENTS.md §3 and §9 reference specific rules by name.
 
 Conventions:
 - Table names are `snake_case` singular.
-- **Dates that are user-facing calendar days** (`shoot_date`, `due_date`,
-  `start_date`, `end_date`, `payment_due_date`, `date_issued`, `valid_until`)
-  are stored as ISO `YYYY-MM-DD` in the user's `default_timezone` (see
-  §5, rule 1). **Timestamps** (`created_at`, `updated_at`, `archived_at`)
-  are RFC-3339 UTC in `TEXT`.
+- **User-facing calendar dates** (`shoot_date`, `due_date`, `start_date`,
+  `end_date`, `payment_due_date`, `date_issued`, `valid_until`) use SQLite
+  `TEXT` containing ISO `YYYY-MM-DD` in the applicable user or record timezone.
+- **Timestamps** (`created_at`, `updated_at`, `archived_at`) use SQLite `TEXT`
+  containing RFC-3339 UTC values.
+- **Local times** such as `call_time_local` use SQLite `TEXT` containing
+  `HH:MM` and are interpreted using their associated IANA timezone.
+- Field tables specify physical SQLite storage types. They do not use
+  `DATE`, `TIME`, or `TIMESTAMPTZ` as aliases.
 - All monetary values are **integer minor units** (see §"Money representation").
-- Every table has `id`, `created_at`, `updated_at`; archive-protected tables
-  additionally have `archived_at`.
-- Primary keys are **ULID** strings (26 chars, sortable, safe in URLs) — chosen
-  over INTEGER for stable external references without leaking volume or order.
+- Regular entity tables use a ULID `id` primary key. The strict one-to-one
+  `quote` table instead uses its ULID `project_id` as the primary key, and
+  `kv_meta` uses its setting `key`.
+- Every mutable entity table has `created_at` and `updated_at`; `kv_meta`
+  intentionally keeps only `updated_at`.
+- Archive-protected tables additionally have `archived_at`. `quote` and
+  `shoot_equipment_item` have no independent archive state and follow their
+  parent record's visibility.
+- ULIDs are 26-character sortable strings that are safe in URLs and avoid
+  exposing record volume or insertion order.
 
 ---
 
@@ -39,14 +49,14 @@ Conventions:
 | `postal_code` | TEXT | yes | maxLength 20. |
 | `country` | TEXT (ISO-3166-1 alpha-2) | yes | Uppercase on save. |
 | `notes` | TEXT | yes | Free text, maxLength 5000. |
-| `created_at` | TIMESTAMPTZ (UTC) | no | |
-| `updated_at` | TIMESTAMPTZ (UTC) | no | |
-| `archived_at` | TIMESTAMPTZ (UTC) | yes | NULL = active. See §"Archive." |
+| `created_at` | TEXT (RFC-3339 UTC) | no | |
+| `updated_at` | TEXT (RFC-3339 UTC) | no | |
+| `archived_at` | TEXT (RFC-3339 UTC) | yes | NULL = active. See §"Archive." |
 
-**Unique index:** `(name, country)` — case-insensitive on name, for de-dup help.
-This is advisory (the app surfaces the collision but does not block) — the
-validator allows duplicates with a warning, and only the user's explicit "force"
-flag blocks. *Documented so it doesn't surprise later.*
+**Non-unique index (duplicate detection):** `(name, country)` — case-insensitive
+on name, for duplicate detection. This index is deliberately **not** UNIQUE:
+the app surfaces a possible duplicate, and duplicate clients are permitted
+after the user's explicit confirmation. *Documented so it doesn't surprise later.*
 
 ### 1.2 `project`
 
@@ -56,13 +66,13 @@ flag blocks. *Documented so it doesn't surprise later.*
 | `client_id` | TEXT, FK→`client.id` | no | `ON DELETE RESTRICT` (archive, don't delete). |
 | `title` | TEXT | no | Non-empty, trimmed, maxLength 200. |
 | `status` | TEXT (ENUM) | no | See `PROJECT_STATUS`. Default `lead`. |
-| `start_date` | DATE (UTC) | yes | See §"Date rules." |
-| `end_date` | DATE (UTC) | yes | If both present, `end_date >= start_date`. |
+| `start_date` | TEXT (YYYY-MM-DD) | yes | See §"Date rules." |
+| `end_date` | TEXT (YYYY-MM-DD) | yes | If both present, `end_date >= start_date`. |
 | `location` | TEXT | yes | Free-form address/area, maxLength 300. |
 | `budget_minor_units` | INTEGER | yes | See §"Money." |
 | `budget_currency` | TEXT (ISO-4217) | yes | Required iff `budget_minor_units` set. Uppercase on save. |
 | `notes` | TEXT | yes | maxLength 5000. |
-| `created_at` / `updated_at` / `archived_at` | TIMESTAMPTZ | | Same as `client`. |
+| `created_at` / `updated_at` / `archived_at` | TEXT (RFC-3339 UTC) | | Same as `client`. |
 
 **Invariants:**
 - `client_id` must reference a non-archived `client` (enforced by a trigger or
@@ -91,12 +101,12 @@ flag blocks. *Documented so it doesn't surprise later.*
 |---|---|---|---|
 | `id` | TEXT (ULID, PK) | no | |
 | `project_id` | TEXT, FK→`project.id` | no | `ON DELETE RESTRICT`. |
-| `shoot_date` | DATE (UTC) | no | The calendar day of the shoot. |
-| `call_time_local` | TIME (HH:MM, 24h) | yes | **Local to the shoot's location** — see §"Date rules." Stored without zone; paired with `location_tz`. |
+| `shoot_date` | TEXT (YYYY-MM-DD) | no | The calendar day of the shoot. |
+| `call_time_local` | TEXT (HH:MM, 24h) | yes | **Local to the shoot's location** — see §"Date rules." Stored without zone; paired with `location_tz`. |
 | `location_tz` | TEXT (IANA) | no | e.g., `Europe/Paris`, `America/New_York`. Required. |
 | `location` | TEXT | no | Free-form, maxLength 300. |
 | `crew_notes` | TEXT | yes | maxLength 5000. |
-| `created_at` / `updated_at` / `archived_at` | TIMESTAMPTZ | | |
+| `created_at` / `updated_at` / `archived_at` | TEXT (RFC-3339 UTC) | | |
 
 **Invariants:**
 - `location_tz` must be a valid IANA zone at write time (validator rejects
@@ -117,7 +127,8 @@ product requires an *equipment checklist* — structured and checkable.)
 | `item` | TEXT | no | Non-empty, trimmed, maxLength 200. |
 | `checked` | INTEGER (0/1, CHECK) | no | Default 0. |
 | `sort` | INTEGER | no | Default 0; user can reorder (up/down). |
-| `created_at` | TIMESTAMPTZ | no | |
+| `created_at` | TEXT (RFC-3339 UTC) | no | |
+| `updated_at` | TEXT (RFC-3339 UTC) | no | |
 
 **Unique index:** `(shoot_id, item, sort)` allows re-adding the same item only
 if the user explicitly bumps `sort` (e.g., two "Canon lenses" items). In
@@ -132,9 +143,9 @@ practice, the app dedups on `(shoot_id, item)` case-insensitively at create.
 | `title` | TEXT | no | Non-empty, trimmed, maxLength 200. |
 | `description` | TEXT | yes | maxLength 5000. |
 | `priority` | TEXT (ENUM) | no | `PRIORITY = { low, normal, high, urgent }`. Default `normal`. |
-| `due_date` | DATE (UTC) + implicit zone | yes | See §"Date rules." If NULL, the task is "no due date." |
+| `due_date` | TEXT (YYYY-MM-DD) | yes | See §"Date rules." If NULL, the task is "no due date." |
 | `status` | TEXT (ENUM) | no | `TASK_STATUS = { todo, in_progress, blocked, done }`. Default `todo`. |
-| `created_at` / `updated_at` / `archived_at` | TIMESTAMPTZ | | |
+| `created_at` / `updated_at` / `archived_at` | TEXT (RFC-3339 UTC) | | |
 
 **Task-status transition table** (enforced):
 
@@ -159,12 +170,12 @@ user can see the exact date that triggered the flag.
 | `project_id` | TEXT, FK→`project.id` | no | `ON DELETE RESTRICT`. |
 | `type` | TEXT (ENUM) | no | `DELIVERABLE_TYPE = { edit_master, color_grade, rough_cut, final_master, thumbnail, stills, audio_master, social_cutdown, other }`. |
 | `title` | TEXT | no | Human name of this deliverable, maxLength 200. |
-| `due_date` | DATE (UTC) | yes | If NULL, no due date. |
+| `due_date` | TEXT (YYYY-MM-DD) | yes | If NULL, no due date. |
 | `review_status` | TEXT (ENUM) | no | `REVIEW_STATUS = { not_submitted, awaiting_review, in_review, approved, changes_requested }`. Default `not_submitted`. |
 | `revision` | INTEGER | no | **1-based**. Default 1. Increments are user-explicit (no auto-increment on submit — the user chooses when to bump). Enforced by CHECK `revision >= 1`. |
 | `link` | TEXT (URL) | yes | Absolute URL (http/https/s3/file). Validated as URL. The user is responsible for the target. |
 | `notes` | TEXT | yes | maxLength 2000. |
-| `created_at` / `updated_at` / `archived_at` | TIMESTAMPTZ | | |
+| `created_at` / `updated_at` / `archived_at` | TEXT (RFC-3339 UTC) | | |
 
 **Review-status transition table:**
 
@@ -189,10 +200,10 @@ user can see the exact date that triggered the flag.
 | `currency` | TEXT (ISO-4217) | no | Uppercase on save. |
 | `invoice_status` | TEXT (ENUM) | no | `INVOICE_STATUS = { draft, sent, paid, void }`. Default `draft`. |
 | `payment_status` | TEXT (ENUM) | no | `PAYMENT_STATUS = { unpaid, partial, paid, overdue }`. Default `unpaid`. |
-| `payment_due_date` | DATE (UTC) | yes | If NULL, no due date. |
-| `date_issued` | DATE (UTC) | yes | Optional; set when `sent`. |
+| `payment_due_date` | TEXT (YYYY-MM-DD) | yes | If NULL, no due date. |
+| `date_issued` | TEXT (YYYY-MM-DD) | yes | Optional calendar day; set when `sent`. |
 | `notes` | TEXT | yes | maxLength 2000. |
-| `created_at` / `updated_at` / `archived_at` | TIMESTAMPTZ | | |
+| `created_at` / `updated_at` / `archived_at` | TEXT (RFC-3339 UTC) | | |
 
 **Invoice invariants (enforced by CHECKs + triggers + service):**
 - `invoice_status = paid  ⇒  payment_status = paid`.
@@ -231,9 +242,9 @@ edits this — v1 does not retain quote revision history.)
 | `project_id` | TEXT, PK, FK→`project.id` | no | 1:1 with project (each project has ≤1 quote) — enforced by UNIQUE `project_id`. |
 | `amount_minor_units` | INTEGER | no | Positive (CHECK `> 0`). See §"Money." |
 | `currency` | TEXT (ISO-4217) | no | |
-| `valid_until` | DATE (UTC) | yes | |
+| `valid_until` | TEXT (YYYY-MM-DD) | yes | |
 | `notes` | TEXT | yes | |
-| `created_at` / `updated_at` | TIMESTAMPTZ | | No `archived_at` (a project archive covers it; no independent archive). |
+| `created_at` / `updated_at` | TEXT (RFC-3339 UTC) | | No `archived_at` (a project archive covers it; no independent archive). |
 
 **Invariants:**
 - A `project` may not have a `quote` unless `project.status` is one of
@@ -249,7 +260,7 @@ A small key/value table for app-level settings (e.g., `default_timezone`,
 |---|---|---|
 | `key` | TEXT, PK | Non-empty, maxLength 80. |
 | `value` | TEXT | JSON-encoded (validated). |
-| `updated_at` | TIMESTAMPTZ | |
+| `updated_at` | TEXT (RFC-3339 UTC) | |
 
 Allowed v1 keys (the validator enforces the closed set):
 
@@ -337,30 +348,32 @@ code (TEXT). Never float, never decimal, never string.** Concretely:
 
 ## 5. Date and time-zone rules
 
-1. **Storage:** every DATE column is stored as a **calendar day** in the
-   user's **default timezone** (see `kv_meta.default_timezone`), in ISO `YYYY-MM-DD`
-   format (SQLite `TEXT`). **No UTC in date columns** for dates that *are*
-   user-facing calendar days (shoot date, due date, budget dates, invoice
-   due date). This is deliberate: "due on Friday" means Friday in the user's
-   zone, not UTC.
-2. **Storage:** every TIMESTAMPTZ column (`created_at`, `updated_at`,
-   `archived_at`, `date_issued` when it's a point-in-time) is stored as an
+1. **Storage:** calendar-date columns use SQLite `TEXT` containing ISO
+   `YYYY-MM-DD` and carry no UTC offset. `shoot.shoot_date` is interpreted
+   in `shoot.location_tz`; every other calendar-date column is interpreted
+   in `kv_meta.default_timezone`. Calendar dates are stored without UTC
+   conversion.
+2. **Storage:** every timestamp column — the physical
+   `TEXT (RFC-3339 UTC)` columns `created_at`, `updated_at`, and `archived_at`
+   — is stored as an
    RFC-3339 string in UTC, `YYYY-MM-DDTHH:MM:SSZ`. SQLite `TEXT`, compared
    lexicographically.
 3. **Time-only fields:** `shoot.call_time_local` is a **naive local time**
    (HH:MM) that is always interpreted in `shoot.location_tz`. It is not
    converted on save or display.
-4. **Zone source of truth:** for calendar "today," use `kv_meta.
-   default_timezone`. For per-record zones (e.g., a shoot in another
-   country), use the record's own `location_tz`.
+4. **Zone source of truth:** for calendar "today," use
+   `kv_meta.default_timezone`. For per-record zones (e.g., a shoot in
+   another country), use the record's own `location_tz`.
 5. **DST handling:** conversions between the record's zone and the user's
    zone are done with the system IANA database. No hand-rolled offsets.
 6. **"Overdue" is a user-zone comparison.** `task.due_date < today(user_zone)`
    — *not* UTC (as stated in §1.5). If any test disagrees with this document,
    this document wins — fix the test.
-7. **No implicit zone on save.** If a request does not specify a zone for a
-   *timestamp*, the server stamps `created_at`/`updated_at` in UTC. If a
-   *date* is written, the user's `default_timezone` is applied.
+7. **No implicit zone on save.** Server-generated `created_at`, `updated_at`,
+   and `archived_at` values are RFC-3339 UTC timestamps. Calendar dates are
+   validated and stored as `YYYY-MM-DD`; business rules interpret
+   `shoot.shoot_date` using `shoot.location_tz` and every other calendar date
+   using `kv_meta.default_timezone`.
 8. **Migration:** any new column that looks date-like must be declared with
    an explicit zone column or with a named constant; the checker script in
    the implementation-plan M1 enforces this by inspecting the migration file.
@@ -390,8 +403,10 @@ the only user-visible removal operations for archive-protected records.**
   - Archiving a `client` archives its `project`s and their archive-protected
     dependents. Unarchiving the client restores only the client; projects must
     be restored individually.
-  - Archiving a `project` archives its `shoot`s, `task`s, `deliverable`s,
-    `quote`, and `invoice`s.
+  - Archiving a `project` archives its `shoot`s, `task`s, `deliverable`s, and
+    `invoice`s. Its `quote` row has no independent archive state and no
+    `archived_at`: the row remains stored and follows the archived project's
+    visibility (absent from normal application views until unarchived).
   - Archiving a `shoot` does not archive the parent project. Its
     `shoot_equipment_item` rows remain stored but follow the archived shoot's
     visibility and are therefore absent from normal application views.
@@ -420,9 +435,11 @@ the only user-visible removal operations for archive-protected records.**
 ### 6.4 Test assertions (implementation-plan references these)
 
 - `T-ARCH-001`: archiving a project sets `archived_at` on the project, its
-  shoots, tasks, deliverables, quote, and invoices. Equipment checklist rows
-  remain stored and hidden through their archived shoot. Unarchiving the
-  project does not automatically unarchive its archive-protected children.
+  shoots, tasks, deliverables, and invoices. The quote row (which has no
+  `archived_at`) remains stored and follows the archived project's visibility.
+  Equipment checklist rows remain stored and hidden through their archived
+  shoot. Unarchiving the project does not automatically unarchive its
+  archive-protected children.
 - `T-ARCH-002`: UI and route/service integration tests expose archive and
   unarchive operations only; no permanent-delete operation is registered.
 - `T-ARCH-003`: archived records are absent from default lists, dashboard
