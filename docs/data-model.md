@@ -306,7 +306,7 @@ task    1 ──1 (one project; v1 has no subtask)
 | `deliverable.type` | `edit_master`, `color_grade`, `rough_cut`, `final_master`, `thumbnail`, `stills`, `audio_master`, `social_cutdown`, `other` |
 | `deliverable.review_status` | `not_submitted`, `awaiting_review`, `in_review`, `approved`, `changes_requested` |
 | `invoice.invoice_status` | `draft`, `sent`, `paid`, `void` |
-| `invoice.payment_status` | `unpaid`, `partial`, `paid`, `overdue` |
+| `invoice.payment_status` | Stored values: `unpaid`, `partial`, `paid`, `overdue`. User-writable values: `unpaid`, `partial`, `paid`; `overdue` is derived according to §1.7. |
 
 Unknown values on write → **rejection with a validation error**, never a
 silent default. Migration of an unknown value on read (defensive) is an
