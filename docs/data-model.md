@@ -205,16 +205,22 @@ user can see the exact date that triggered the flag.
 | `notes` | TEXT | yes | maxLength 2000. |
 | `created_at` / `updated_at` / `archived_at` | TEXT (RFC-3339 UTC) | | |
 
-**Invoice invariants (enforced by CHECKs + triggers + service):**
+**Invoice invariants (enforced by database CHECK constraints and the invoice service):**
 - `invoice_status = paid  ⇒  payment_status = paid`.
 - `payment_status = paid  ⇒  invoice_status ∈ {paid}` and `amount_minor_units > 0`.
 - `invoice_status = void  ⇒  payment_status ∈ {unpaid, partial}` (a void
   invoice is never `paid`; `overdue` collapses to `unpaid` on void).
-- `payment_status = overdue` is **not user-set**; it is *derived* whenever
-  `payment_status = unpaid` AND `payment_due_date < today(user_zone)`. The app
-  materializes this at read time AND at write time (a trigger recomputes on
-  every update and on the daily "tick" if the app happens to be running).
-  (If the app is closed past a deadline, the first read recomputes.)
+- `payment_status = overdue` is stored but **never user-set**. The invoice
+  service recalculates and persists it whenever an invoice is read or written,
+  using `kv_meta.default_timezone` to determine `today(user_zone)`. It sets
+  `overdue` when `invoice_status = sent`, `payment_status` is `unpaid` or
+  `overdue`, `payment_due_date` is present, and `payment_due_date` is earlier
+  than `today(user_zone)`. If a stored `overdue` invoice no longer meets all
+  of those conditions, the service normalizes it to `unpaid`. An in-process
+  daily tick may refresh open invoices while the app is running; after
+  downtime, the first invoice read refreshes it. v1 has no SQLite overdue
+  trigger because SQLite cannot calculate “today” in an arbitrary IANA
+  timezone without an application-provided function.
 
 **Invoice-status transition table:**
 
