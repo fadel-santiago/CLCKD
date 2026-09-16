@@ -4,9 +4,9 @@ import { describe, expect, it } from "vitest";
 import HomePage from "@/app/page";
 
 describe("home page", () => {
-  it("renders the 'Videographer Manager' heading", () => {
+  it("renders the 'CLCKD' heading", () => {
     const html = renderToStaticMarkup(<HomePage />);
-    expect(html).toContain("Videographer Manager");
+    expect(html).toContain("CLCKD");
   });
 
   it("renders exactly one h1 element", () => {

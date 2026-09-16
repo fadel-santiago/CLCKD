@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 type HealthStatus = "ok";
 
 const HEALTH_STATUS: HealthStatus = "ok";
-const SERVICE_NAME = "videographer-manager";
+const SERVICE_NAME = "clckd";
 
 /**
  * GET /health — liveness probe (used by the M4 G4 gate).

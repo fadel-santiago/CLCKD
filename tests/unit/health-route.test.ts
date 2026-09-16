@@ -11,7 +11,7 @@ describe("GET /health", () => {
   it("returns the fixed JSON body", async () => {
     const response = await GET();
     const body: unknown = await response.json();
-    expect(body).toEqual({ status: "ok", service: "videographer-manager" });
+    expect(body).toEqual({ status: "ok", service: "clckd" });
   });
 
   it("sets a JSON content type", async () => {

@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Videographer Manager",
-  description: "Local management application for videographers.",
+  title: "CLCKD",
+  description: "CLCKD — management software for videographers.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
