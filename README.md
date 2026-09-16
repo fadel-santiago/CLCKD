@@ -1,4 +1,4 @@
-# Videographer Manager
+# CLCKD
 
 A local-first management application for solo videographers and small video-production
 studios.

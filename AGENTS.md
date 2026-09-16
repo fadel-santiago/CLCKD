@@ -7,7 +7,7 @@ actions require explicit confirmation.
 
 ## 1. Scope
 
-- Work **only inside `/workspaces/videographer-manager`** (this repository).
+- Work **only inside `/workspaces/clckd`** (this repository).
 - Do not read, write, install, or modify anything outside this directory,
   **except**: reading system/proxy environment, using already-installed
   toolchain, and (for builds) writing to the local `node_modules`/`.next`
