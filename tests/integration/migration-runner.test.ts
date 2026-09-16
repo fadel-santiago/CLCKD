@@ -2,7 +2,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { discoverMigrationPairs } from "../../src/lib/db/migrations";
+import Database from "better-sqlite3";
+import {
+  discoverMigrationPairs,
+  runPendingMigrations,
+} from "../../src/lib/db/migrations";
+import { SCHEMA_VERSION_KEY } from "../../src/lib/db/schema-version";
 
 /** Create a temp migrations dir and write the given filenames (empty bodies). */
 function makeMigrationsDir(names: string[]): string {
@@ -182,5 +187,278 @@ describe("Batch 1B2A — migration catalog discovery", () => {
     ]);
     expect(catalog).toHaveLength(1);
     expect(catalog[0].version).toBe(1);
+  });
+});
+
+describe("Batch 1B2B — transactional forward migration execution", () => {
+  const tempDirs: string[] = [];
+  const openDbs: Database.Database[] = [];
+
+  /** Open a temp SQLite file, tracked for cleanup. */
+  function makeDb(): Database.Database {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vm-migdb-"));
+    tempDirs.push(dir);
+    const db = new Database(path.join(dir, "test.db"));
+    openDbs.push(db);
+    return db;
+  }
+
+  /** Create a temp migrations dir with explicit up SQL contents. */
+  function makeCatalog(pairs: Record<string, string | null>): string {
+    // key: "0001_name" → up SQL body (down files always created empty)
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vm-migexec-"));
+    tempDirs.push(dir);
+    for (const [key, upSql] of Object.entries(pairs)) {
+      if (upSql !== null) {
+        fs.writeFileSync(path.join(dir, `${key}.up.sql`), upSql);
+      }
+      fs.writeFileSync(path.join(dir, `${key}.down.sql`), `-- down ${key}\n`);
+    }
+    return dir;
+  }
+
+  function ledgerValue(db: Database.Database): string {
+    const row = db
+      .prepare(`SELECT value FROM kv_meta WHERE key = ?`)
+      .get(SCHEMA_VERSION_KEY) as { value: string };
+    return row.value;
+  }
+
+  function tableExists(db: Database.Database, name: string): boolean {
+    return (
+      db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`).get(name) !==
+      undefined
+    );
+  }
+
+  afterAll(() => {
+    for (const db of openDbs) {
+      try {
+        db.close();
+      } catch {
+        // already closed
+      }
+    }
+    for (const dir of tempDirs) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("bootstraps version 0 and returns a no-op for an empty catalog", () => {
+    const db = makeDb();
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vm-migempty-"));
+    tempDirs.push(dir);
+
+    const result = runPendingMigrations(db, dir);
+    expect(result).toEqual({ startingVersion: 0, endingVersion: 0, appliedVersions: [] });
+    // Ledger was bootstrapped to the unmigrated baseline.
+    expect(ledgerValue(db)).toBe("0");
+  });
+
+  it("applies multiple pending migrations in ascending order", () => {
+    const db = makeDb();
+    const dir = makeCatalog({
+      "0003_third": `CREATE TABLE t3 (id INTEGER);`,
+      "0001_first": `CREATE TABLE t1 (id INTEGER); INSERT INTO t1 (id) VALUES (1);`,
+      "0002_second": `CREATE TABLE t2 (id INTEGER);`,
+    });
+
+    runPendingMigrations(db, dir);
+
+    expect(tableExists(db, "t1")).toBe(true);
+    expect(tableExists(db, "t2")).toBe(true);
+    expect(tableExists(db, "t3")).toBe(true);
+    expect(ledgerValue(db)).toBe("3");
+  });
+
+  it("returns the correct MigrationRunResult", () => {
+    const db = makeDb();
+    const dir = makeCatalog({
+      "0001_first": `CREATE TABLE t1 (id INTEGER);`,
+      "0002_second": `CREATE TABLE t2 (id INTEGER);`,
+      "0010_tenth": `CREATE TABLE t10 (id INTEGER);`,
+    });
+
+    const result = runPendingMigrations(db, dir);
+    expect(result.startingVersion).toBe(0);
+    expect(result.endingVersion).toBe(10);
+    expect(result.appliedVersions).toEqual([1, 2, 10]);
+  });
+
+  it("only applies versions newer than the stored version", () => {
+    const db = makeDb();
+    const dir = makeCatalog({
+      "0001_first": `CREATE TABLE t1 (id INTEGER);`,
+      "0002_second": `CREATE TABLE t2 (id INTEGER);`,
+      "0003_third": `CREATE TABLE t3 (id INTEGER);`,
+    });
+
+    // Simulate a ledger already at version 2.
+    runPendingMigrations(db, dir);
+    db.prepare(`UPDATE kv_meta SET value = '2' WHERE key = ?`).run(SCHEMA_VERSION_KEY);
+    // Drop t3 so re-application is observable; keep t1/t2 as "already applied".
+    db.exec(`DROP TABLE t3`);
+
+    const result = runPendingMigrations(db, dir);
+    expect(result.startingVersion).toBe(2);
+    expect(result.endingVersion).toBe(3);
+    expect(result.appliedVersions).toEqual([3]);
+    expect(tableExists(db, "t3")).toBe(true);
+  });
+
+  it("is an idempotent no-op on a repeated run with nothing pending", () => {
+    const db = makeDb();
+    const dir = makeCatalog({
+      "0001_first": `CREATE TABLE t1 (id INTEGER);`,
+    });
+
+    runPendingMigrations(db, dir);
+    const second = runPendingMigrations(db, dir);
+    expect(second).toEqual({ startingVersion: 1, endingVersion: 1, appliedVersions: [] });
+    expect(ledgerValue(db)).toBe("1");
+  });
+
+  it("rolls back a failing first migration and leaves version 0", () => {
+    const db = makeDb();
+    // Creates a table then fails mid-migration.
+    const dir = makeCatalog({
+      "0001_first": `CREATE TABLE t1 (id INTEGER); INSERT INTO missing_table VALUES (1);`,
+    });
+
+    expect(() => runPendingMigrations(db, dir)).toThrow(/migration 0001/);
+    // The table created before the failure was rolled back with its version bump.
+    expect(tableExists(db, "t1")).toBe(false);
+    expect(ledgerValue(db)).toBe("0");
+  });
+
+  it("preserves an earlier successful migration when a later one fails", () => {
+    const db = makeDb();
+    const dir = makeCatalog({
+      "0001_first": `CREATE TABLE t1 (id INTEGER); INSERT INTO t1 (id) VALUES (42);`,
+      "0002_second": `CREATE TABLE t2 (id INTEGER); INSERT INTO missing_table VALUES (1);`,
+    });
+
+    let thrown: unknown;
+    try {
+      runPendingMigrations(db, dir);
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(Error);
+    const message = (thrown as Error).message;
+    expect(message).toContain("migration 0002");
+    expect(message).toContain("ledger preserved at 1");
+
+    // Earlier migration intact; failing one fully rolled back.
+    expect(tableExists(db, "t1")).toBe(true);
+    expect(
+      (db.prepare(`SELECT id FROM t1`).get() as { id: number }).id
+    ).toBe(42);
+    expect(tableExists(db, "t2")).toBe(false);
+    // Ledger preserved at the version before the failing migration.
+    expect(ledgerValue(db)).toBe("1");
+  });
+
+  it("writes RFC-3339 UTC updated_at and changes it when a migration applies", () => {
+    const db = makeDb();
+    const t1 = new Date("2026-01-02T03:04:05.000Z");
+    const t2 = new Date("2026-01-02T03:04:06.000Z");
+
+    const catalogDir = makeCatalog({
+      "0001_first": `CREATE TABLE t1 (id INTEGER);`,
+      "0002_second": `CREATE TABLE t2 (id INTEGER);`,
+    });
+    runPendingMigrations(db, catalogDir, () => t1);
+    let row = db
+      .prepare(`SELECT updated_at FROM kv_meta WHERE key = ?`)
+      .get(SCHEMA_VERSION_KEY) as { updated_at: string };
+    expect(row.updated_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    expect(row.updated_at).toBe(t1.toISOString());
+
+    // Rewind the ledger to 1 (t2 dropped) and re-apply migration 2 at a later instant.
+    db.exec(`DROP TABLE t2`);
+    db.prepare(`UPDATE kv_meta SET value = '1' WHERE key = ?`).run(SCHEMA_VERSION_KEY);
+    runPendingMigrations(db, catalogDir, () => t2);
+    row = db
+      .prepare(`SELECT updated_at FROM kv_meta WHERE key = ?`)
+      .get(SCHEMA_VERSION_KEY) as { updated_at: string };
+    expect(row.updated_at).toBe(t2.toISOString());
+  });
+
+  it("fails on invalid canonical ledger values before pending SQL executes", () => {
+    for (const bad of ["", "01", "-1", "1.0", "abc"]) {
+      const db = makeDb();
+      const dir = makeCatalog({
+        "0001_first": `CREATE TABLE t1 (id INTEGER);`,
+      });
+      // Bootstrap then corrupt the ledger value.
+      runPendingMigrations(db, dir, () => new Date("2026-01-01T00:00:00.000Z"));
+      db.prepare(`UPDATE kv_meta SET value = ? WHERE key = ?`).run(bad, SCHEMA_VERSION_KEY);
+      // Reset so the pending migration would be applicable if validation passed.
+      db.exec(`DROP TABLE t1`);
+      db.prepare(`UPDATE kv_meta SET value = '0' WHERE key = ?`).run(SCHEMA_VERSION_KEY);
+      db.prepare(`UPDATE kv_meta SET value = ? WHERE key = ?`).run(bad, SCHEMA_VERSION_KEY);
+
+      expect(() => runPendingMigrations(db, dir)).toThrow(/schema_version/);
+      // No pending SQL ran.
+      expect(tableExists(db, "t1")).toBe(false);
+      expect(ledgerValue(db)).toBe(bad);
+    }
+  });
+
+  it("fails closed on incompatible stored versions", () => {
+    // Stored version exceeds the highest catalog version.
+    {
+      const db = makeDb();
+      const dir = makeCatalog({ "0003_third": `CREATE TABLE t3 (id INTEGER);` });
+      runPendingMigrations(db, dir, () => new Date("2026-01-01T00:00:00.000Z")); // apply 3
+      db.exec(`DROP TABLE t3`);
+      db.prepare(`UPDATE kv_meta SET value = '7' WHERE key = ?`).run(SCHEMA_VERSION_KEY);
+
+      expect(() => runPendingMigrations(db, dir)).toThrow(/exceeds the highest catalog version/);
+      expect(ledgerValue(db)).toBe("7");
+    }
+
+    // Stored version has no corresponding catalog entry.
+    {
+      const db = makeDb();
+      const dir = makeCatalog({
+        "0001_first": `CREATE TABLE t1 (id INTEGER);`,
+        "0003_third": `CREATE TABLE t3 (id INTEGER);`,
+      });
+      runPendingMigrations(db, dir, () => new Date("2026-01-01T00:00:00.000Z"));
+      db.exec(`DROP TABLE t1; DROP TABLE t3`);
+      db.prepare(`UPDATE kv_meta SET value = '2' WHERE key = ?`).run(SCHEMA_VERSION_KEY);
+
+      expect(() => runPendingMigrations(db, dir)).toThrow(/no corresponding entry/);
+      expect(ledgerValue(db)).toBe("2");
+    }
+
+    // Nonzero stored version with an empty catalog.
+    {
+      const db = makeDb();
+      const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), "vm-migfail-"));
+      tempDirs.push(emptyDir);
+      runPendingMigrations(db, emptyDir, () => new Date("2026-01-01T00:00:00.000Z")); // bootstrap 0
+      db.prepare(`UPDATE kv_meta SET value = '1' WHERE key = ?`).run(SCHEMA_VERSION_KEY);
+
+      expect(() => runPendingMigrations(db, emptyDir)).toThrow(/catalog is empty/);
+      expect(ledgerValue(db)).toBe("1");
+    }
+  });
+
+  it("does not create kv_meta or change the database when the catalog is invalid", () => {
+    const db = makeDb();
+    // Orphan up file: catalog discovery must throw before SQLite is touched.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vm-miginvalid-"));
+    tempDirs.push(dir);
+    fs.writeFileSync(path.join(dir, "0001_first.up.sql"), `CREATE TABLE t1 (id INTEGER);\n`);
+
+    expect(() => runPendingMigrations(db, dir)).toThrow(/orphan migration file/);
+    // No kv_meta table and no other database change.
+    const tables = db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`).all() as {
+      name: string;
+    }[];
+    expect(tables).toEqual([]);
   });
 });

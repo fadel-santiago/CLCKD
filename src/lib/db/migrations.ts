@@ -1,11 +1,12 @@
 /**
- * Production Batch 1B2A — migration catalog discovery (no execution).
+ * Production Batch 1B2A/1B2B — migration catalog discovery and transactional
+ * forward migration execution.
  *
  * Discovers paired SQL migration files in a directory:
  *
  *   000N_name.up.sql / 000N_name.down.sql
  *
- * Rules enforced here (and only here):
+ * Catalog rules enforced by `discoverMigrationPairs`:
  * - exact four-digit numeric version prefix, `0001` … `9999`;
  *   version `0000` is rejected — schema version 0 is the unmigrated ledger baseline;
  * - every up file must have a matching down file with the same version AND name,
@@ -16,11 +17,24 @@
  *   `NNNN_name` shape is malformed and rejected;
  * - unrelated ordinary files in the directory are ignored.
  *
- * Deliberately out of scope for this batch: migration execution, SQLite access,
- * transactions, and schema-version ledger updates.
+ * `runPendingMigrations` additionally:
+ * - validates the entire catalog before touching SQLite (fail closed);
+ * - bootstraps the `kv_meta` ledger only after catalog validation succeeds;
+ * - reads and validates `schema_version` as a canonical non-negative integer;
+ * - fails closed when the stored version exceeds the highest catalog version,
+ *   names a version missing from the catalog, or is nonzero with an empty catalog;
+ * - applies each pending migration (up SQL + schema-version bump) inside one
+ *   better-sqlite3 transaction, in ascending version order;
+ * - on failure rolls back that single migration, preserves earlier ones,
+ *   and rethrows an error identifying the failing migration;
+ * - never opens or closes the supplied database connection.
+ *
+ * Deliberately out of scope: down/rollback execution, CLI scripts, backups.
  */
 import fs from "node:fs";
 import path from "node:path";
+import type Database from "better-sqlite3";
+import { bootstrapSchemaVersion, rfc3339UtcNow, SCHEMA_VERSION_KEY } from "./schema-version";
 
 /** A discovered, validated up/down migration pair. */
 export interface MigrationPair {
@@ -45,11 +59,24 @@ interface MigrationFile {
   filePath: string;
 }
 
+/** Result of one `runPendingMigrations` call. */
+export interface MigrationRunResult {
+  /** Ledger schema_version before any migration was applied. */
+  startingVersion: number;
+  /** Ledger schema_version after the run (highest applied version, or start if none). */
+  endingVersion: number;
+  /** Versions applied during this call, in ascending order. Empty for a no-op. */
+  appliedVersions: number[];
+}
+
 /**
  * Exact paired-filename shape: four digits, underscore,
  * one or more word characters (letters, digits, underscores).
  */
 const MIGRATION_FILE_RE = /^(\d{4})_([A-Za-z0-9_]+)\.(up|down)\.sql$/;
+
+/** Canonical ledger value: a non-negative integer with no leading zero ("0", "1", …). */
+const CANONICAL_VERSION_RE = /^(0|[1-9]\d*)$/;
 
 /** Parse one filename into a MigrationFile, or null if it is not a migration file. */
 function parseMigrationFilename(fileName: string): MigrationFile | null {
@@ -168,4 +195,112 @@ export function discoverMigrationPairs(migrationsDir: string): MigrationPair[] {
   // Numeric ordering by the four-digit version (the map may hold any order).
   pairs.sort((a, b) => a.version - b.version);
   return pairs;
+}
+
+/** Read the ledger schema_version and validate it as a canonical non-negative integer. */
+function readCanonicalSchemaVersion(db: Database.Database): number {
+  const raw = db
+    .prepare(`SELECT value FROM kv_meta WHERE key = ?`)
+    .get(SCHEMA_VERSION_KEY) as { value: string } | undefined;
+  if (raw === undefined || typeof raw.value !== "string" || !CANONICAL_VERSION_RE.test(raw.value)) {
+    throw new Error(
+      `invalid schema_version in kv_meta: ${JSON.stringify(raw?.value)} — expected a canonical non-negative integer (e.g. "0", "1", "23")`
+    );
+  }
+  return Number(raw.value);
+}
+
+/**
+ * Apply all pending migrations to `db` in ascending version order.
+ *
+ * The catalog is discovered and fully validated before SQLite is touched; the
+ * `kv_meta` ledger is bootstrapped only after that validation succeeds.
+ * Each migration's up SQL and its schema-version bump run inside a single
+ * better-sqlite3 transaction, so a failure rolls back exactly that migration
+ * while earlier ones remain applied. The supplied connection is neither
+ * opened nor closed by this function.
+ *
+ * @param db An already-open better-sqlite3 database connection.
+ * @param migrationsDir Directory that directly contains the migration files.
+ * @param now Optional clock for `updated_at` timestamps (defaults to `new Date()`).
+ * @returns startingVersion, endingVersion, and the versions applied this run.
+ * @throws Error if the catalog is invalid, the stored schema_version is
+ *   non-canonical, exceeds the highest catalog version, or names a version
+ *   missing from the catalog; or if a migration's up SQL fails (rethrown with
+ *   the failing migration identified).
+ */
+export function runPendingMigrations(
+  db: Database.Database,
+  migrationsDir: string,
+  now?: () => Date
+): MigrationRunResult {
+  // 1. Discover and completely validate the catalog before touching SQLite.
+  const catalog = discoverMigrationPairs(migrationsDir);
+
+  // 2. Bootstrap the ledger only after catalog validation succeeded.
+  bootstrapSchemaVersion(db, now ? now() : new Date());
+
+  // 3. Read and validate the stored schema_version.
+  const startingVersion = readCanonicalSchemaVersion(db);
+
+  // 4. Fail closed on an incompatible stored version. An empty catalog is a
+  // valid no-op only at the unmigrated baseline (version 0).
+  if (catalog.length === 0 && startingVersion !== 0) {
+    throw new Error(
+      `incompatible schema_version ${startingVersion}: the migration catalog is empty — refusing to run`
+    );
+  }
+  const highest = catalog.length > 0 ? catalog[catalog.length - 1].version : 0;
+  if (startingVersion > highest) {
+    throw new Error(
+      `incompatible schema_version ${startingVersion}: exceeds the highest catalog version ${String(highest).padStart(4, "0")} — refusing to run`
+    );
+  }
+  if (startingVersion !== 0 && !catalog.some((pair) => pair.version === startingVersion)) {
+    throw new Error(
+      `incompatible schema_version ${startingVersion}: no corresponding entry in the migration catalog — refusing to run`
+    );
+  }
+
+  // 5. Apply only pending migrations, ascending. `currentVersion` tracks the
+  // ledger as each migration commits, so a failure reports exactly where the
+  // run stopped and earlier successful migrations remain in place.
+  const appliedVersions: number[] = [];
+  let currentVersion = startingVersion;
+  for (const pair of catalog) {
+    if (pair.version <= startingVersion) {
+      continue;
+    }
+
+    // Read the up SQL inside the per-migration error boundary so a
+    // filesystem/read failure also identifies the failing migration.
+    try {
+      const upSql = fs.readFileSync(pair.upPath, "utf8");
+      const updatedAt = rfc3339UtcNow(now ? now() : new Date());
+
+      // Up SQL + ledger bump in one transaction; on failure only this
+      // migration's schema changes and its version bump roll back.
+      db.transaction(() => {
+        db.exec(upSql);
+        db.prepare(`UPDATE kv_meta SET value = ?, updated_at = ? WHERE key = ?`).run(
+          String(pair.version),
+          updatedAt,
+          SCHEMA_VERSION_KEY
+        );
+      })();
+
+      currentVersion = pair.version;
+      appliedVersions.push(pair.version);
+    } catch (err) {
+      const detail = err instanceof Error ? `: ${err.message}` : ` (${String(err)})`;
+      const paddedVersion = String(pair.version).padStart(4, "0");
+      throw new Error(
+        `migration ${paddedVersion} failed — version ${pair.version} ("${pair.name}") rolled back; ` +
+          `ledger preserved at ${currentVersion}${detail}`
+      );
+    }
+  }
+
+  // Report the run.
+  return { startingVersion, endingVersion: currentVersion, appliedVersions };
 }
