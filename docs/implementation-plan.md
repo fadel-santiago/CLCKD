@@ -1,4 +1,4 @@
-# Implementation Plan — videographer-manager v1
+# Implementation Plan — CLCKD v1
 
 ## 1. Status and binding documents
 
@@ -31,7 +31,7 @@
 ## 3. Project directory structure (explicit)
 
 ```
-videographer-manager/
+clckd/
 ├── AGENTS.md
 ├── README.md
 ├── package.json

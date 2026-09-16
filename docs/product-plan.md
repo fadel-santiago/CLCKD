@@ -1,4 +1,4 @@
-# Product Plan — Videographer Manager v1
+# Product Plan — CLCKD v1
 
 **Scope:** planning only. This document defines what v1 is, who it is for, what it
 does, and what it deliberately does not do. The schema is in `docs/data-model.md`;

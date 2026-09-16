@@ -1,4 +1,4 @@
-# Data Model — Videographer Manager v1
+# Data Model — CLCKD v1
 
 The single source of truth for the SQLite schema, the allowed value sets, the
 money and date rules, and how deletion/archive works. **Nothing in this file is
