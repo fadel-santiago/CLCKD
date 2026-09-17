@@ -122,3 +122,36 @@ export const updateClientSchema = z
 
 export type CreateClientInput = z.infer<typeof createClientSchema>;
 export type UpdateClientInput = z.infer<typeof updateClientSchema>;
+
+// ─── Client record schema (full database row) ────────────────────────────────
+
+const ulidRegex = /^[0-9A-HJKMNP-TV-Z]{26}$/;
+const rfc3339UtcRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
+
+/**
+ * Validates a full `client` row as stored in SQLite.
+ *
+ * - `id` is a ULID (Crockford base-32, 26 chars).
+ * - `created_at`, `updated_at` are RFC-3339 UTC strings.
+ * - Nullable columns validate as `null` (not `undefined`) when absent.
+ */
+export const clientRecordSchema = z.strictObject({
+  id: z.string().regex(ulidRegex, "id must be a valid ULID"),
+  name: z.string().min(1).max(200),
+  kind: z.enum(["person", "organization"]),
+  preferred_contact_name: z.string().max(200).nullable(),
+  email: z.email().nullable(),
+  phone: z.string().regex(/^\+[1-9]\d{1,14}$/).nullable(),
+  address_line1: z.string().max(200).nullable(),
+  address_line2: z.string().max(200).nullable(),
+  city: z.string().max(100).nullable(),
+  region: z.string().max(100).nullable(),
+  postal_code: z.string().max(20).nullable(),
+  country: z.string().regex(/^[A-Za-z]{2}$/).nullable(),
+  notes: z.string().max(5000).nullable(),
+  created_at: z.string().regex(rfc3339UtcRegex, "created_at must be RFC-3339 UTC"),
+  updated_at: z.string().regex(rfc3339UtcRegex, "updated_at must be RFC-3339 UTC"),
+  archived_at: z.string().regex(rfc3339UtcRegex, "archived_at must be RFC-3339 UTC").nullable(),
+});
+
+export type Client = z.infer<typeof clientRecordSchema>;
