@@ -1,16 +1,21 @@
 /**
- * Production Batch 2D1 — visible read-only clients page.
+ * Production Batch 2D3 — clients page with mutation controls.
  *
- * - Async server component: no client-side component, no direct SQLite access.
+ * - Async server component: no direct SQLite access.
  * - `dynamic = "force-dynamic"` keeps this page out of static generation so
  *   clients are always read at request time.
  * - Data comes from `getApplicationClientRepository()` (the single
  *   application database entry point).
- * - Read-only for now: no forms, no mutation controls, no raw IDs.
+ * - Mutation controls come from `./client-controls` (create, archive,
+ *   restore); no raw IDs are rendered as visible text.
  */
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getApplicationClientRepository } from "@/lib/db/application";
+import {
+  ClientArchiveControl,
+  CreateClientForm,
+} from "./client-controls";
 import styles from "./clients.module.css";
 
 export const dynamic = "force-dynamic";
@@ -57,8 +62,8 @@ export default async function ClientsPage({
             <h1 className={styles.title}>Clients</h1>
             <p className={styles.description}>
               The people and organizations you film for — who to contact, how to
-              reach them, and where they are based. Everything on this page is
-              read-only for now.
+              reach them, and where they are based. Add new clients and archive
+              or restore them below.
             </p>
           </div>
         </div>
@@ -75,6 +80,8 @@ export default async function ClientsPage({
             <span className={styles.summaryValue}>{archivedClients.length}</span>
           </div>
         </section>
+
+        <CreateClientForm />
 
         <div className={styles.toolbar}>
           <h2 className={styles.viewHeading}>
@@ -112,7 +119,7 @@ export default async function ClientsPage({
                 : "When you add your first client, they will appear here as a card with their contact details."}
             </p>
             <p className={styles.emptyHint}>
-              Adding and editing clients arrives in a later release.
+              Use the form above to add your first client.
             </p>
           </section>
         ) : (
@@ -175,6 +182,11 @@ export default async function ClientsPage({
                       </div>
                     )}
                   </dl>
+
+                  <ClientArchiveControl
+                    id={client.id}
+                    archived={client.archived_at !== null}
+                  />
                 </article>
               );
             })}
