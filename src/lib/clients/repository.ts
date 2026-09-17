@@ -7,14 +7,15 @@
  *   before being returned; raw rows never escape this module.
  * - All SQL is parameterized.
  *
- * Deliberately out of scope (later batches): updates, archive/
- * unarchive, hard deletion, routes, server actions, UI.
+ * Deliberately out of scope (later batches): archive/unarchive,
+ * hard deletion, routes, server actions, UI.
  */
 import type Database from "better-sqlite3";
 import { ulid } from "ulid";
 import {
   clientRecordSchema,
   createClientSchema,
+  updateClientSchema,
   type Client,
 } from "./schema";
 
@@ -38,7 +39,17 @@ export interface ClientRepository {
    * Ordered deterministically: name (case-insensitive) ascending, id ascending.
    */
   listClients(options?: { includeArchived?: boolean }): Client[];
+  /**
+   * Validate the ID and input, update only the supplied fields, and return
+   * the validated stored row. Returns null when no client with this ID
+   * exists. Supplied `null` values clear the column; omitted fields are
+   * left unchanged.
+   */
+  updateClient(id: string, input: unknown): Client | null;
 }
+
+/** ULID (Crockford base-32, 26 chars) — same rule as `clientRecordSchema`. */
+const ulidRegex = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
 /** Columns of `client` that are user-writable (docs/data-model.md §1.1). */
 const WRITABLE_COLUMNS = [
@@ -153,6 +164,73 @@ export function createClientRepository(
 
     listClients(options?: { includeArchived?: boolean }): Client[] {
       return listValidatedClients(db, options?.includeArchived ?? false);
+    },
+
+    updateClient(id: string, input: unknown): Client | null {
+      // Validate the ID before touching SQLite (no write can follow a throw).
+      if (typeof id !== "string" || !ulidRegex.test(id)) {
+        throw new Error("id must be a valid ULID");
+      }
+
+      // Validate input; throws on unknown/server-managed fields, invalid
+      // values, or an empty update (no write can follow a throw).
+      const data = updateClientSchema.parse(input);
+
+      // Only fields actually supplied (value !== undefined) are updated;
+      // a supplied null clears the column. Column names come exclusively
+      // from the fixed allowlist; every value is bound as a SQL parameter.
+      const setClauses: string[] = [];
+      const params: unknown[] = [];
+      let emailParamIndex = -1;
+      let countryParamIndex = -1;
+
+      for (const column of WRITABLE_COLUMNS) {
+        const value = data[column];
+        if (value === undefined) {
+          continue;
+        }
+        setClauses.push(`${column} = ?`);
+        params.push(value);
+        if (column === "email") {
+          emailParamIndex = params.length - 1;
+        }
+        if (column === "country") {
+          countryParamIndex = params.length - 1;
+        }
+      }
+
+      // Normalize on save (docs/data-model.md §1.1): lowercase a non-null
+      // email, uppercase a non-null country; nulls pass through unchanged.
+      if (emailParamIndex !== -1 && typeof data.email === "string") {
+        params[emailParamIndex] = data.email.toLowerCase();
+      }
+      if (countryParamIndex !== -1 && typeof data.country === "string") {
+        params[countryParamIndex] = data.country.toUpperCase();
+      }
+
+      // Server-managed: updated_at from the injected clock. id, created_at,
+      // and archived_at are never touched by this method.
+      setClauses.push(`updated_at = ?`);
+      params.push(now().toISOString());
+
+      params.push(id);
+
+      const result = db
+        .prepare(
+          `UPDATE client SET ${setClauses.join(", ")} WHERE id = ?`,
+        )
+        .run(...params);
+
+      if (result.changes === 0) {
+        return null;
+      }
+
+      // Validate the stored row before returning it.
+      const stored = readValidatedClient(db, id);
+      if (stored === null) {
+        throw new Error(`client update failed: row ${id} is no longer readable`);
+      }
+      return stored;
     },
   };
 }
