@@ -265,4 +265,96 @@ describe("updateClientSchema", () => {
       assertUnrecognizedKey(result.error, "website");
     }
   });
+
+  it("clears one nullable field with explicit null", () => {
+    const result = updateClientSchema.safeParse({ email: null });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.email).toBeNull();
+      expect(result.data.name).toBeUndefined();
+      expect(result.data.phone).toBeUndefined();
+    }
+  });
+
+  it("clears every nullable field with explicit null", () => {
+    const result = updateClientSchema.safeParse({
+      preferred_contact_name: null,
+      email: null,
+      phone: null,
+      address_line1: null,
+      address_line2: null,
+      city: null,
+      region: null,
+      postal_code: null,
+      country: null,
+      notes: null,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.preferred_contact_name).toBeNull();
+      expect(result.data.email).toBeNull();
+      expect(result.data.phone).toBeNull();
+      expect(result.data.address_line1).toBeNull();
+      expect(result.data.address_line2).toBeNull();
+      expect(result.data.city).toBeNull();
+      expect(result.data.region).toBeNull();
+      expect(result.data.postal_code).toBeNull();
+      expect(result.data.country).toBeNull();
+      expect(result.data.notes).toBeNull();
+      expect(result.data.name).toBeUndefined();
+      expect(result.data.kind).toBeUndefined();
+    }
+  });
+
+  it("counts an explicit null as a supplied (non-empty) update", () => {
+    const result = updateClientSchema.safeParse({ notes: null });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.notes).toBeNull();
+    }
+    // By contrast, undefined/omission is still an empty update.
+    const empty = updateClientSchema.safeParse({ notes: undefined });
+    expect(empty.success).toBe(false);
+  });
+
+  it("still validates non-null values of nullable fields", () => {
+    const invalid = updateClientSchema.safeParse({ email: "not-an-email" });
+    expect(invalid.success).toBe(false);
+    if (!invalid.success) {
+      expect(invalid.error.issues[0]?.path).toContain("email");
+    }
+    const valid = updateClientSchema.safeParse({ email: "jane@example.com" });
+    expect(valid.success).toBe(true);
+    if (valid.success) {
+      expect(valid.data.email).toBe("jane@example.com");
+    }
+  });
+
+  it("rejects null for name", () => {
+    const result = updateClientSchema.safeParse(record({ name: null }));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toContain("name");
+    }
+  });
+
+  it("rejects null for kind", () => {
+    const result = updateClientSchema.safeParse(record({ kind: null }));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toContain("kind");
+    }
+  });
+
+  it("keeps create input behavior unchanged (null is not a valid create value)", () => {
+    for (const field of ["email", "phone", "city", "notes"]) {
+      const result = createClientSchema.safeParse(
+        record({ name: "Acme", [field]: null }),
+      );
+      expect(result.success, `expected create ${field}: null to be rejected`).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.path).toContain(field);
+      }
+    }
+  });
 });

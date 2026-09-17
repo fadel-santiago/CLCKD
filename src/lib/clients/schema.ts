@@ -80,39 +80,46 @@ export const updateClientSchema = z
       .string()
       .trim()
       .max(200, "preferred_contact_name must be at most 200 characters")
+      .nullable()
       .optional(),
-    email: emailSchema.optional(),
-    phone: phoneSchema.optional(),
+    email: emailSchema.nullable().optional(),
+    phone: phoneSchema.nullable().optional(),
     address_line1: z
       .string()
       .trim()
       .max(200, "address_line1 must be at most 200 characters")
+      .nullable()
       .optional(),
     address_line2: z
       .string()
       .trim()
       .max(200, "address_line2 must be at most 200 characters")
+      .nullable()
       .optional(),
     city: z
       .string()
       .trim()
       .max(100, "city must be at most 100 characters")
+      .nullable()
       .optional(),
     region: z
       .string()
       .trim()
       .max(100, "region must be at most 100 characters")
+      .nullable()
       .optional(),
     postal_code: z
       .string()
       .trim()
       .max(20, "postal_code must be at most 20 characters")
+      .nullable()
       .optional(),
-    country: countrySchema.optional(),
+    country: countrySchema.nullable().optional(),
     notes: z
       .string()
       .trim()
       .max(5000, "notes must be at most 5000 characters")
+      .nullable()
       .optional(),
   })
   .refine(
