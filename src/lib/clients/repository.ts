@@ -7,7 +7,7 @@
  *   before being returned; raw rows never escape this module.
  * - All SQL is parameterized.
  *
- * Deliberately out of scope (later batches): listing, updates, archive/
+ * Deliberately out of scope (later batches): updates, archive/
  * unarchive, hard deletion, routes, server actions, UI.
  */
 import type Database from "better-sqlite3";
@@ -32,6 +32,12 @@ export interface ClientRepository {
   createClient(input: unknown): Client;
   /** Return the validated client with this ID, or null when no row exists. */
   getClientById(id: string): Client | null;
+  /**
+   * List clients. Archived rows (archived_at IS NOT NULL) are excluded by
+   * default; `includeArchived: true` returns active and archived clients.
+   * Ordered deterministically: name (case-insensitive) ascending, id ascending.
+   */
+  listClients(options?: { includeArchived?: boolean }): Client[];
 }
 
 /** Columns of `client` that are user-writable (docs/data-model.md §1.1). */
@@ -59,6 +65,20 @@ function readValidatedClient(db: Database.Database, id: string): Client | null {
     return null;
   }
   return clientRecordSchema.parse(row);
+}
+
+/** Read all rows matching the filter and validate each as a client record. */
+function listValidatedClients(db: Database.Database, includeArchived: boolean): Client[] {
+  const rows = db
+    .prepare(
+      includeArchived
+        ? `SELECT * FROM client
+           ORDER BY name COLLATE NOCASE ASC, id ASC`
+        : `SELECT * FROM client WHERE archived_at IS NULL
+           ORDER BY name COLLATE NOCASE ASC, id ASC`,
+    )
+    .all() as Array<Record<string, unknown>>;
+  return rows.map((row) => clientRecordSchema.parse(row));
 }
 
 /**
@@ -129,6 +149,10 @@ export function createClientRepository(
 
     getClientById(id: string): Client | null {
       return readValidatedClient(db, id);
+    },
+
+    listClients(options?: { includeArchived?: boolean }): Client[] {
+      return listValidatedClients(db, options?.includeArchived ?? false);
     },
   };
 }

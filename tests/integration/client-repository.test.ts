@@ -195,3 +195,107 @@ describe("Batch 2B1A — client repository (create/get)", () => {
     expect(() => repo.getClientById("short")).toThrow();
   });
 });
+
+describe("Batch 2B1B — client repository (listing)", () => {
+  const tempDirs: string[] = [];
+  let db: Database.Database;
+  let repo: ClientRepository;
+
+  /** Deterministic ULID sequence for ordering tests (Crockford base-32, 26 chars). */
+  const makeIdSequence = (prefix: string): (() => string) => {
+    let n = 0;
+    return () => {
+      const c = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"[n % 32];
+      n += 1;
+      return prefix + c;
+    };
+  };
+
+  beforeEach(() => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "clckd-client-list-"));
+    tempDirs.push(dir);
+    db = openDatabase({ dbPath: path.join(dir, "test.db") });
+    runPendingMigrations(db, MIGRATIONS_DIR, () => FIXED_NOW);
+    repo = createClientRepository(db, {
+      generateId: makeIdSequence("01ARZ3NDEKTSV4RRFFQ69G5FA"),
+      now: () => FIXED_NOW,
+    });
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  afterAll(() => {
+    for (const dir of tempDirs) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("by default lists only active clients", () => {
+    const active = repo.createClient({ name: "Active Studio" });
+    const archived = repo.createClient({ name: "Archived Studio" });
+
+    // Archive one row directly (archive methods are out of scope for this batch).
+    db.prepare(`UPDATE client SET archived_at = ? WHERE id = ?`).run(
+      FIXED_NOW_ISO,
+      archived.id,
+    );
+
+    const defaultList = repo.listClients();
+    expect(defaultList.map((c) => c.id)).toEqual([active.id]);
+    expect(defaultList.every((c) => c.archived_at === null)).toBe(true);
+
+    const all = repo.listClients({ includeArchived: true });
+    expect(all.map((c) => c.id)).toEqual([active.id, archived.id]);
+    expect(all.find((c) => c.id === archived.id)?.archived_at).toBe(FIXED_NOW_ISO);
+  });
+
+  it("includes archived clients when includeArchived is true", () => {
+    const first = repo.createClient({ name: "First" });
+    const second = repo.createClient({ name: "Second" });
+
+    db.prepare(`UPDATE client SET archived_at = ? WHERE id = ?`).run(
+      FIXED_NOW_ISO,
+      first.id,
+    );
+    db.prepare(`UPDATE client SET archived_at = ? WHERE id = ?`).run(
+      FIXED_NOW_ISO,
+      second.id,
+    );
+
+    const all = repo.listClients({ includeArchived: true });
+    expect(all.map((c) => c.id).sort()).toEqual([first.id, second.id]);
+
+    // Default still excludes both.
+    expect(repo.listClients()).toEqual([]);
+  });
+
+  it("orders case-insensitively by name with id as tie-breaker", () => {
+    const a = repo.createClient({ name: "alpha" });
+    const b = repo.createClient({ name: "Alpha" });
+    const c = repo.createClient({ name: "zeta" });
+    const d = repo.createClient({ name: "Beta" });
+
+    // Expected: alpha (a), Alpha (b), Beta (d), zeta (c) — name NOCASE, then id.
+    expect(repo.listClients().map((c) => c.id)).toEqual([a.id, b.id, d.id, c.id]);
+
+    // includeArchived: true must return the same deterministic order.
+    expect(repo.listClients({ includeArchived: true }).map((c) => c.id)).toEqual([
+      a.id,
+      b.id,
+      d.id,
+      c.id,
+    ]);
+  });
+
+  it("rejects malformed rows read from SQLite", () => {
+    repo.createClient({ name: "Corrupted Listing" });
+
+    // Corrupt the stored row into a shape the record schema must reject.
+    db.prepare(`UPDATE client SET created_at = 'not-a-timestamp'`).run();
+
+    expect(() => repo.listClients()).toThrow();
+    expect(() => repo.listClients({ includeArchived: true })).toThrow();
+  });
+});
