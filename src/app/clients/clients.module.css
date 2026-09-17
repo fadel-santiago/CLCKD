@@ -1,0 +1,394 @@
+/* Production Batch 2D1 — local styles for the read-only clients page.
+ *
+ * Design tokens:
+ *   warm neutral background, dark charcoal text, restrained coral accent.
+ * No external fonts, images, or CSS frameworks. Animations are limited to
+ * short color/opacity transitions on interactive elements.
+ */
+
+:root {
+  color-scheme: light;
+}
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #faf7f2;
+  color: #26241f;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+  line-height: 1.55;
+}
+
+/* ---------------------------------------------------------------- header */
+
+.header {
+  background-color: #ffffff;
+  border-bottom: 1px solid #e8e2d8;
+}
+
+.headerInner {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 1.25rem 1.25rem 1.5rem;
+}
+
+.brandRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+}
+
+.brand {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #26241f;
+}
+
+.nav {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.navLink,
+.footerLink {
+  color: #4c4840;
+  font-size: 0.925rem;
+  font-weight: 500;
+  text-decoration: none;
+  padding: 0.35rem 0.6rem;
+  border-radius: 8px;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.navLink:hover,
+.footerLink:hover {
+  color: #b3452f;
+  background-color: #f6ece7;
+}
+
+.navLink:focus-visible,
+.footerLink:focus-visible,
+.toggleLink:focus-visible {
+  outline: 3px solid #d96a4f;
+  outline-offset: 2px;
+}
+
+.intro {
+  max-width: 42rem;
+}
+
+.title {
+  margin: 0 0 0.4rem;
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #26241f;
+}
+
+.description {
+  margin: 0;
+  font-size: 0.975rem;
+  color: #5b564c;
+}
+
+/* ------------------------------------------------------------------ main */
+
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 1.75rem 1.25rem 2.5rem;
+  box-sizing: border-box;
+}
+
+/* summary cards */
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1.75rem;
+}
+
+.summaryCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.9rem 1.1rem;
+  background-color: #ffffff;
+  border: 1px solid #e8e2d8;
+  border-radius: 12px;
+}
+
+.summaryLabel {
+  font-size: 0.825rem;
+  font-weight: 500;
+  color: #6b6559;
+}
+
+.summaryValue {
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: #26241f;
+  font-variant-numeric: tabular-nums;
+}
+
+/* toolbar: view heading + toggle */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.viewHeading {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #26241f;
+}
+
+.viewNote {
+  font-weight: 400;
+  color: #6b6559;
+}
+
+.toggle {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background-color: #efe9df;
+  border-radius: 10px;
+}
+
+.toggleLink {
+  padding: 0.4rem 0.95rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #4c4840;
+  text-decoration: none;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.toggleLink:hover {
+  color: #b3452f;
+}
+
+.toggleLink[data-active="true"] {
+  background-color: #ffffff;
+  color: #b3452f;
+  box-shadow: 0 1px 2px rgba(38, 36, 31, 0.12);
+}
+
+/* client cards grid */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.05rem 1.1rem 1.15rem;
+  background-color: #ffffff;
+  border: 1px solid #e8e2d8;
+  border-radius: 14px;
+}
+
+.card[data-archived="true"] {
+  background-color: #f6f3ec;
+  border-style: dashed;
+  border-color: #d5cfc2;
+}
+
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.cardName {
+  margin: 0;
+  font-size: 1.075rem;
+  font-weight: 650;
+  color: #26241f;
+  overflow-wrap: anywhere;
+}
+
+.card[data-archived="true"] .cardName {
+  color: #5b564c;
+}
+
+.cardStatus {
+  flex-shrink: 0;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background-color: #eef2ea;
+  color: #4c6b3c;
+}
+
+.cardStatus[data-archived="true"] {
+  background-color: #efe9df;
+  color: #8a6d3b;
+}
+
+.cardDetails {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.detailRow {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+
+.detailLabel {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #8a8478;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.detailValue {
+  margin: 0;
+  font-size: 0.925rem;
+  color: #37342d;
+  overflow-wrap: anywhere;
+}
+
+.card[data-archived="true"] .detailValue {
+  color: #5b564c;
+}
+
+/* empty state */
+
+.empty {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  background-color: #ffffff;
+  border: 1px dashed #d5cfc2;
+  border-radius: 14px;
+}
+
+.emptyTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 650;
+  color: #26241f;
+}
+
+.emptyBody {
+  margin: 0 auto;
+  max-width: 30rem;
+  color: #5b564c;
+}
+
+.emptyHint {
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
+  color: #8a8478;
+}
+
+/* ---------------------------------------------------------------- footer */
+
+.footer {
+  border-top: 1px solid #e8e2d8;
+  background-color: #ffffff;
+}
+
+.footerInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 1rem 1.25rem;
+  font-size: 0.875rem;
+  color: #6b6559;
+}
+
+/* ------------------------------------------------------------ responsive */
+
+@media (max-width: 720px) {
+  .headerInner {
+    padding: 1rem 1rem 1.25rem;
+  }
+
+  .brandRow {
+    margin-bottom: 1.25rem;
+  }
+
+  .title {
+    font-size: 1.6rem;
+  }
+
+  .main {
+    padding: 1.25rem 1rem 2rem;
+  }
+
+  .summary {
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toggle {
+    width: 100%;
+  }
+
+  .toggleLink {
+    flex: 1;
+    text-align: center;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detailRow {
+    grid-template-columns: 1fr;
+    gap: 0.1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navLink,
+  .footerLink,
+  .toggleLink {
+    transition: none;
+  }
+}
