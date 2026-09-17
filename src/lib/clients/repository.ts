@@ -1,5 +1,5 @@
 /**
- * Production Batch 2B1A — client repository (create and read only).
+ * Production Batch 2B1A/2B3 — client repository (CRUD-lite + archive).
  *
  * - The database connection is injected (no global connection is created here).
  * - ID generation and the clock are injectable for deterministic tests.
@@ -7,8 +7,8 @@
  *   before being returned; raw rows never escape this module.
  * - All SQL is parameterized.
  *
- * Deliberately out of scope (later batches): archive/unarchive,
- * hard deletion, routes, server actions, UI.
+ * Deliberately out of scope (later batches): hard deletion, routes,
+ * server actions, UI.
  */
 import type Database from "better-sqlite3";
 import { ulid } from "ulid";
@@ -46,10 +46,34 @@ export interface ClientRepository {
    * left unchanged.
    */
   updateClient(id: string, input: unknown): Client | null;
+  /**
+   * Validate the ID, archive the client (setting `archived_at` and
+   * `updated_at` to one injected-clock timestamp), and cascade that same
+   * timestamp to the client's project, shoot, task, deliverable, and
+   * invoice rows — all inside one transaction. Returns the validated
+   * stored row. Returns null when no client with this ID exists. Re-archiving
+   * an already-archived client is idempotent and preserves the original
+   * timestamps.
+   */
+  archiveClient(id: string): Client | null;
+  /**
+   * Validate the ID, unarchive the client (clearing only `client.archived_at`
+   * and bumping `client.updated_at`), and return the validated stored row.
+   * Descendant rows are left untouched. Returns null when no client with
+   * this ID exists. Unarchiving an already-active client is idempotent and
+   * preserves the original timestamps.
+   */
+  unarchiveClient(id: string): Client | null;
 }
 
 /** ULID (Crockford base-32, 26 chars) — same rule as `clientRecordSchema`. */
 const ulidRegex = /^[0-9A-HJKMNP-TV-Z]{26}$/;
+
+/**
+ * Descendant tables whose `archived_at`/`updated_at` cascade when a client
+ * is archived (fixed list — never derived from user input).
+ */
+const ARCHIVE_CASCADE_TABLES = ["project", "shoot", "task", "deliverable", "invoice"] as const;
 
 /** Columns of `client` that are user-writable (docs/data-model.md §1.1). */
 const WRITABLE_COLUMNS = [
@@ -231,6 +255,97 @@ export function createClientRepository(
         throw new Error(`client update failed: row ${id} is no longer readable`);
       }
       return stored;
+    },
+
+    archiveClient(id: string): Client | null {
+      // Validate the ID before touching SQLite (no write can follow a throw).
+      if (typeof id !== "string" || !ulidRegex.test(id)) {
+        throw new Error("id must be a valid ULID");
+      }
+
+      const runArchive = db.transaction(() => {
+        const existingRow = db
+          .prepare(`SELECT * FROM client WHERE id = ?`)
+          .get(id) as Record<string, unknown> | undefined;
+        if (existingRow === undefined) {
+          return null;
+        }
+
+        // Already archived: idempotent, preserve the original timestamps.
+        if (existingRow.archived_at !== null) {
+          return clientRecordSchema.parse(existingRow);
+        }
+
+        // One injected-clock timestamp for archived_at and updated_at.
+        const timestamp = now().toISOString();
+
+        // Archive the client.
+        db.prepare(`UPDATE client SET archived_at = ?, updated_at = ? WHERE id = ?`)
+          .run(timestamp, timestamp, id);
+
+        // Cascade the same timestamp to the client's projects.
+        db.prepare(
+          `UPDATE project SET archived_at = ?, updated_at = ? WHERE client_id = ?`,
+        ).run(timestamp, timestamp, id);
+
+        // Cascade it to the remaining descendants through their projects.
+        for (const table of ARCHIVE_CASCADE_TABLES) {
+          if (table === "project") {
+            continue;
+          }
+          db.prepare(
+            `UPDATE ${table}
+             SET archived_at = ?, updated_at = ?
+             WHERE project_id IN (SELECT id FROM project WHERE client_id = ?)`,
+          ).run(timestamp, timestamp, id);
+        }
+
+        // Validate the stored row before returning it.
+        const stored = readValidatedClient(db, id);
+        if (stored === null) {
+          throw new Error(`client archive failed: row ${id} is no longer readable`);
+        }
+        return stored;
+      });
+
+      return runArchive();
+    },
+
+    unarchiveClient(id: string): Client | null {
+      // Validate the ID before touching SQLite (no write can follow a throw).
+      if (typeof id !== "string" || !ulidRegex.test(id)) {
+        throw new Error("id must be a valid ULID");
+      }
+
+      const runUnarchive = db.transaction(() => {
+        const existingRow = db
+          .prepare(`SELECT * FROM client WHERE id = ?`)
+          .get(id) as Record<string, unknown> | undefined;
+        if (existingRow === undefined) {
+          return null;
+        }
+
+        // Already active: idempotent, preserve the original timestamps.
+        if (existingRow.archived_at === null) {
+          return clientRecordSchema.parse(existingRow);
+        }
+
+        // One injected-clock timestamp for updated_at (archived_at -> NULL).
+        const timestamp = now().toISOString();
+
+        // Clear only the client's archived_at; descendants are left untouched.
+        db.prepare(`UPDATE client SET archived_at = NULL, updated_at = ? WHERE id = ?`)
+          .run(timestamp, id);
+
+        // Validate the stored row before returning it.
+        const stored = readValidatedClient(db, id);
+        if (stored === null) {
+          throw new Error(`client unarchive failed: row ${id} is no longer readable`);
+        }
+        return stored;
+      });
+
+      return runUnarchive();
     },
   };
 }
