@@ -1,4 +1,5 @@
 "use server";
+import { requireOwnerAction } from "@/lib/access/server";
 
 /**
  * Production Batch 2C2C — client server actions.
@@ -35,6 +36,7 @@ export async function createClientAction(
   previousState: ClientMutationState,
   formData: FormData
 ): Promise<ClientMutationState> {
+  await requireOwnerAction();
   void previousState;
   const repository = getApplicationClientRepository();
   const result = createClientFromForm(repository, formData);
@@ -54,6 +56,7 @@ export async function archiveClientAction(
   previousState: ClientMutationState,
   formData: FormData
 ): Promise<ClientMutationState> {
+  await requireOwnerAction();
   void previousState;
   const repository = getApplicationClientRepository();
   const result = archiveClientFromForm(repository, formData);
@@ -73,6 +76,7 @@ export async function unarchiveClientAction(
   previousState: ClientMutationState,
   formData: FormData
 ): Promise<ClientMutationState> {
+  await requireOwnerAction();
   void previousState;
   const repository = getApplicationClientRepository();
   const result = unarchiveClientFromForm(repository, formData);

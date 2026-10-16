@@ -9,3 +9,59 @@ data/
 *.log
 tsconfig.tsbuildinfo
 next-env.d.ts
+
+# Runtime databases and SQLite sidecars, including copies outside data/.
+# SQL/TS/JSON fixtures stay trackable. Allowlist any reviewed synthetic binary
+# fixture individually; never blanket-unignore a secrets or runtime directory.
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite3-journal
+
+# Local secrets and copied bootstrap codes, not application credential logic.
+/secrets/
+/.secrets/
+/credentials/
+/.credentials/
+/.ssh/
+/.aws/
+/.npmrc
+.netrc
+.pgpass
+owner-setup-code
+owner-setup-code.*
+credentials.json
+credentials.yaml
+credentials.yml
+secrets.json
+secrets.yaml
+secrets.yml
+service-account*.json
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+
+# Disposable local tooling/browser output. Source fixtures are not ignored.
+/.cache/
+/.vite/
+/.local/
+/tmp/
+/temp/
+/backups/
+/output/
+/private/
+playwright-report/
+test-results/

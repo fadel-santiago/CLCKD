@@ -14,6 +14,7 @@ import {
 import { openMigratedDatabase } from "../../src/lib/db/application";
 import { DEFAULT_DB_PATH } from "../../src/lib/db/index";
 import { SCHEMA_VERSION_KEY } from "../../src/lib/db/schema-version";
+import { discoverMigrationPairs } from "../../src/lib/db/migrations";
 
 /**
  * Connections captured by the `openDatabase` wrapper (see the vi.mock below).
@@ -76,6 +77,8 @@ const ENTITY_TABLES: string[] = [
   "shoot_equipment_item",
   "task",
 ];
+const PRODUCTION_TABLES = ["production_project", "output_spec", "output_version", "production_event", "production_payment_plan", "production_payment_milestone", "production_payment_plan_draft_archive", "production_payment_milestone_draft_archive", "owner_account", "access_invitation", "invitation_output", "access_session", "access_attempt"];
+const LATEST_SCHEMA_VERSION = String(discoverMigrationPairs(MIGRATIONS_DIR).at(-1)!.version);
 
 /** Snapshot of the real default database file (null when it does not exist). */
 interface DefaultDbSnapshot {
@@ -159,7 +162,7 @@ describe("Batch 2C1 — openMigratedDatabase (application gateway)", () => {
     }
   });
 
-  it("opens a fresh temporary database and migrates it to schema version 1", () => {
+  it("opens a fresh temporary database and applies the complete production catalog", () => {
     const dir = makeTempDir("vm-app-database-");
     const dbPath = path.join(dir, "app.db");
     expect(fs.existsSync(dbPath)).toBe(false);
@@ -171,7 +174,7 @@ describe("Batch 2C1 — openMigratedDatabase (application gateway)", () => {
     expect(db.open).toBe(true);
 
     // Migrated to exactly schema version 1 by the real 0001_initial migration.
-    expect(ledgerSchemaVersion(db)).toBe("1");
+    expect(ledgerSchemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
   });
 
   it("creates the real initial tables (the eight entity tables plus kv_meta)", () => {
@@ -179,7 +182,7 @@ describe("Batch 2C1 — openMigratedDatabase (application gateway)", () => {
     const db = makeMigratedDb(dir);
 
     // Ledger + the eight entity tables — nothing else.
-    expect(tableNames(db)).toEqual([...ENTITY_TABLES, "kv_meta"].sort());
+    expect(tableNames(db)).toEqual([...ENTITY_TABLES, ...PRODUCTION_TABLES, "kv_meta"].sort());
   });
 
   it("is an idempotent no-op when the same database is reopened and migrations rerun", () => {
@@ -187,7 +190,7 @@ describe("Batch 2C1 — openMigratedDatabase (application gateway)", () => {
     const dbPath = path.join(dir, "app.db");
 
     const first = makeMigratedDb(dir);
-    expect(ledgerSchemaVersion(first)).toBe("1");
+    expect(ledgerSchemaVersion(first)).toBe(LATEST_SCHEMA_VERSION);
     const tablesAfterFirst = tableNames(first);
     first.close();
     openDbs.splice(openDbs.indexOf(first), 1);
@@ -198,7 +201,7 @@ describe("Batch 2C1 — openMigratedDatabase (application gateway)", () => {
 
     expect(second.open).toBe(true);
     // Still exactly version 1 — no migration was applied a second time.
-    expect(ledgerSchemaVersion(second)).toBe("1");
+    expect(ledgerSchemaVersion(second)).toBe(LATEST_SCHEMA_VERSION);
     // The schema is unchanged.
     expect(tableNames(second)).toEqual(tablesAfterFirst);
   });
@@ -239,7 +242,7 @@ describe("Batch 2C1 — openMigratedDatabase (application gateway)", () => {
     // A complete open/migrate/close cycle on a temporary database only.
     const dir = makeTempDir("vm-app-database-");
     const db = makeMigratedDb(dir);
-    expect(ledgerSchemaVersion(db)).toBe("1");
+    expect(ledgerSchemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
     db.close();
     openDbs.splice(openDbs.indexOf(db), 1);
 

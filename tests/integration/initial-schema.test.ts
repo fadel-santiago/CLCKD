@@ -84,6 +84,17 @@ function triggerNames(db: Database.Database): string[] {
 describe("Batch 1C3A — real 0001_initial migration smoke tests", () => {
   const tempDirs: string[] = [];
   const openDbs: Database.Database[] = [];
+  let initialDirectory: string | undefined;
+  function initialMigrationDirectory(): string {
+    if (initialDirectory) return initialDirectory;
+    initialDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "clckd-initial-catalog-"));
+    tempDirs.push(initialDirectory);
+    for (const suffix of ["up", "down"]) {
+      const name = `0001_initial.${suffix}.sql`;
+      fs.copyFileSync(path.join(MIGRATIONS_DIR, name), path.join(initialDirectory, name));
+    }
+    return initialDirectory;
+  }
 
   /** Open a fresh temporary database through the project DB helper, tracked for cleanup. */
   function makeDb(): Database.Database {
@@ -121,7 +132,7 @@ describe("Batch 1C3A — real 0001_initial migration smoke tests", () => {
     expect(initialPair.name).toBe("initial");
 
     // Run the existing pending-migration runner against the real files.
-    const result = runPendingMigrations(db, MIGRATIONS_DIR);
+    const result = runPendingMigrations(db, initialMigrationDirectory());
     expect(result.startingVersion).toBe(0);
     expect(result.endingVersion).toBe(1);
     expect(result.appliedVersions).toEqual([1]);
@@ -149,7 +160,7 @@ describe("Batch 1C3A — real 0001_initial migration smoke tests", () => {
     const db = makeDb();
 
     // First apply migration 0001 normally.
-    runPendingMigrations(db, MIGRATIONS_DIR);
+    runPendingMigrations(db, initialMigrationDirectory());
     expect(readSchemaVersion(db)).toBe("1");
 
     // Locate the real down file via catalog discovery (no duplicated SQL).
@@ -177,7 +188,7 @@ describe("Batch 1C3A — real 0001_initial migration smoke tests", () => {
     expect(readSchemaVersion(db)).toBe("0");
 
     // Re-run the normal pending-migration runner: all eight entity tables return.
-    const result = runPendingMigrations(db, MIGRATIONS_DIR);
+    const result = runPendingMigrations(db, initialMigrationDirectory());
     expect(result.startingVersion).toBe(0);
     expect(result.endingVersion).toBe(1);
     expect(result.appliedVersions).toEqual([1]);

@@ -1,0 +1,25 @@
+"use client";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import type { ClientProjectSnapshot } from "@/lib/access/repository";
+import { formatMoney } from "@/lib/operations/money";
+import { clientSignOutAction } from "../access/actions";
+import styles from "../projects/payment-plan.module.css";
+
+function safeLink(value: string | null) { if (!value) return null; try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password ? url.href : null; } catch { return null; } }
+export function GuestProject({ snapshot }: { snapshot: ClientProjectSnapshot }) {
+  const router = useRouter(); const [selected, setSelected] = useState(snapshot.outputs[0]?.id ?? "");
+  useEffect(() => { const timer = window.setInterval(() => { if (document.visibilityState === "visible") router.refresh(); }, 15000); return () => window.clearInterval(timer); }, [router]);
+  const outputs = snapshot.outputs;
+  const output = outputs.find((item) => item.id === selected) ?? outputs[0];
+  const href = safeLink(output?.link ?? null);
+  const stages = [{ label: "Scope agreed", done: snapshot.scope_confirmed }, { label: "Shoot completed", done: snapshot.shoot_completed }, { label: "Shared preview", done: outputs.some((item) => item.submitted) }, { label: "Shared outputs approved", done: outputs.length > 0 && outputs.every((item) => item.approved) }, { label: "Shared outputs delivered", done: outputs.length > 0 && outputs.every((item) => item.delivered) }];
+  const completed = stages.filter((item) => item.done).length;
+  return <main className="page"><section className={styles.preview}><span className="eyebrow">Made together, step by step</span><h1 className="pageTitle">{snapshot.title}</h1><p>{snapshot.client_name} · project reference {snapshot.id}</p><p className={styles.note}>Read-only access intended for {snapshot.recipient_name}. Access expires {new Intl.DateTimeFormat("en-GB", {dateStyle:"medium",timeZone:"UTC"}).format(new Date(snapshot.expires_at))}. Link possession is not independent identity verification.</p>
+    <div className={styles.progress} role="progressbar" aria-label="Shared project checkpoints" aria-valuemin={0} aria-valuemax={5} aria-valuenow={completed} aria-valuetext={`${completed} of 5 shared checkpoints recorded`}><div style={{width:`${completed * 20}%`}} /></div><p aria-live="polite">{completed} of 5 shared checkpoints recorded. This is not a percentage of work hours.</p>
+    <div className={styles.stages}>{stages.map((item) => <div className={`${styles.stage} ${styles.updated}`} data-done={item.done} key={`${item.label}:${item.done}`}><span aria-hidden="true">{item.done ? "✓" : "○"}</span>{item.label}</div>)}</div><p className={styles.note}>Scope v{snapshot.scope_revision} · target delivery {snapshot.target_date || "To confirm"}. Decisions and external payments below are reported by the project owner.</p>
+    <h2>Your shared outputs</h2>{output ? <><label className="field">Choose an output<select className="select" value={output.id} onChange={(event) => setSelected(event.target.value)}>{outputs.map((item) => <option key={item.id} value={item.id}>{item.title} · v{item.revision}</option>)}</select></label><article className={`${styles.milestone} ${styles.updated}`} key={`${output.id}:${output.revision}`}><h3>{output.title} · version {output.revision}</h3><p>{output.quantity} × {output.format || "Specification to confirm"} · {output.revision_allowance} included revision rounds</p><p>Due {output.due_date || "To confirm"}</p>{href ? <><a className="button buttonPrimary" href={href} target="_blank" rel="noopener noreferrer">Open shared review ↗</a>{/\.(mp4|webm|mov)$/i.test(new URL(href).pathname) && <video controls preload="none" src={href} aria-label={`${output.title} preview`} />}</> : <p className={styles.note}>A review link will appear when this shared output is submitted.</p>}</article></> : <p className={styles.note}>No output has been shared with this invitation. The owner controls which review links are visible.</p>}
+    {snapshot.payment_plan && <><h2>Agreed payment schedule</h2><p>{formatMoney(snapshot.payment_plan.total_minor_units, snapshot.payment_plan.currency, "en-GB")} · payments happen outside CLCKD</p>{snapshot.payment_plan.milestones.map((item,index) => <article className={styles.milestone} key={index}><h3>{item.title} · {item.basis_points / 100}%</h3><p>{formatMoney(item.amount_minor_units,snapshot.payment_plan!.currency,"en-GB")} · {item.paid ? "Owner recorded receipt" : "Not recorded received"}</p><p>{item.payment_condition}</p>{item.due_date && <p>Due {item.due_date}</p>}</article>)}{snapshot.payment_plan.terms && <p style={{whiteSpace:"pre-wrap"}}>{snapshot.payment_plan.terms}</p>}</>}
+    <p className={styles.note}>Review links use external hosts. Their access and download rules are controlled there. Project access does not grant publication rights or verify a work credit.</p><form action={clientSignOutAction}><button className="button buttonQuiet">Leave this client session</button></form>
+  </section></main>;
+}

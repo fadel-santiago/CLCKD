@@ -1,239 +1,391 @@
-# Product Plan — CLCKD v1
+Product Plan — CLCKD v1
 
-**Scope:** planning only. This document defines what v1 is, who it is for, what it
-does, and what it deliberately does not do. The schema is in `docs/data-model.md`;
-the build order is in `docs/implementation-plan.md`; the working rules are in
-`AGENTS.md`.
+Current implementation checkpoint — 12 October 2026
 
----
+The accepted Focus direction is a calm dark workspace for film and photography.
+Projects contain independently versioned outputs with specification, quantity,
+deadline and revision allowance. The local operator records scope confirmation,
+reported client decisions, corrections and external handover. A new revision
+needs explicit intent and a change note; previous versions and decisions remain
+stored. A project can be wrapped only after all active outputs are delivered.
+Production and client records remain local and archive-only.
 
-## 1. Target user
+This checkpoint implements owner-authenticated management and local project
+viewer invitations, but not verified client identities, paid SaaS access,
+public credit verification or app-store distribution. It must not label
+operator-entered decisions as independently verified client signatures.
+Project chat remains excluded. Payments between client and creative remain
+external; delivery does not automatically mark invoices paid.
 
-- **Primary:** a solo professional videographer (weddings, events, product/brand
-  video, documentaries) who runs their own pipeline on a laptop or desktop and
-  sometimes works from a tablet in the field.
-- **Secondary:** a very small studio (owner + 1 partner) where a single operator
-  still manages the data. Only one human uses the app at a time.
-- **Working context:** offline-capable, on the operator's own machine (or a
-  dedicated local box). The user cares about: "what do I need to do this week,"
-  "what is owed to me," and "where does each job stand."
-- **Not for:** agencies that need approval chains, role-based permissions,
-  customer self-service portals, or integration with accounting/CRM SaaS.
+Payment schedules are now configured at creation or in the project's Payments
+tab: 50/50, 30/30/40, five equal stages or custom percentages. Each stage has an
+explicit work/payment condition, optional due date and exact allocated amount.
+The operator can record externally received payments or correct a mistaken
+record; CLCKD never collects money or guarantees receipt. Contract reference
+and commercial terms are records, not authenticated signatures. The distinct
+read-only Client preview shows recorded checkpoints, review links and the
+payment schedule, with restrained progress animation and reduced-motion support.
+The owner preview remains available. A separate client route now supports scoped,
+read-only access through an expiring, revocable invitation, for local testing only.
 
-Operating assumptions:
-- One user, one device family (desktop primary, tablet secondary).
-- Data volume is small (tens to a few hundred active records) and grows slowly.
-- Correctness and durability of the record matter more than feature breadth.
+Creation is guided through Project, Outputs and Agreement with retained draft
+fields and optional details. Payment conditions may explicitly gate production,
+post-production or delivery. A payable-after-delivery milestone has no delivery
+gate, avoiding circular requirements. These controls gate app workflows only.
+Future paid owners manage the workspace; invited client guests must have
+server-enforced project-scoped permissions, never a UI-only restriction. The
+local preview does not grant guest access or claim authenticated project credits.
 
----
+The access pilot has one owner secured by a locally held setup code and a chosen
+passphrase. Guests cannot register as owners, manage records, record payments,
+approve work or access other projects. Owners explicitly select shared outputs
+and whether commercial terms are included. One-use invitations and their client
+sessions are revocable and expire. Future submitted versions of selected outputs
+are shared; drafts and unselected output links stay private in CLCKD. These access
+controls are server-enforced, not UI-only. Local owner mode does not fabricate a
+paid membership. Remote client sharing, multi-tenant subscriptions, recovery and
+independent identity/credit verification are not yet launch-ready.
 
-## 2. Primary workflows
+1. Product Definition
+CLCKD is a local-first production management application designed specifically for solo videographers and very small video-production teams.
+It helps the operator manage the business and production lifecycle of video work without turning their workflow into generic enterprise project management.
+CLCKD should answer five questions immediately:
+	1	What needs my attention now?
+	2	What am I shooting next?
+	3	Where does each project currently stand?
+	4	What is waiting on me or the client?
+	5	What money is still outstanding?
+The application should feel like opening a production desk.
+Not a spreadsheet.
+Not a generic CRM.
+Not a miniature version of Monday, ClickUp, or Notion.
 
-The v1 app is organized around these day-to-day loops. Each must work end-to-end
-without touching anything outside the machine.
+2. Target User
+Primary
+A solo professional videographer working across areas such as:
+	•	events;
+	•	weddings;
+	•	commercial / brand content;
+	•	music videos;
+	•	documentaries;
+	•	social content;
+	•	freelance production work.
+They manage their own clients, projects, shoot preparation, post-production, delivery, and payment tracking.
+Secondary
+A very small production studio, typically an owner plus one partner or collaborator, where one operator primarily manages CLCKD.
+Working Context
+Desktop is primary.
+Tablet should remain comfortable for production-day use.
+The operator may use CLCKD before a shoot, during production preparation, during post-production, and while handling client/admin work.
+v1 is single-user and local-first.
 
-### W1 — Take on a new piece of work
-1. Find or create a **client**.
-2. Create a **project** linked to that client: title, status, planned dates,
-   location, budget, notes.
-3. Record the **quote** amount for the project.
-4. Create the first **tasks** (e.g., "send contract," "scout location") and
-   one or more **shoots** with date, call time, location, crew notes, and an
-   equipment checklist.
+3. Product Philosophy
+3.1 Production first
+The product should be organized around the life of a video project rather than around database tables.
+The normal lifecycle is:
+Lead → Proposed → Booked → In Production → Post Production → Completed
+The underlying values remain exactly as defined in docs/data-model.md.
+The interface may present shorter, more natural labels where appropriate.
 
-### W2 — Run the daily / weekly operation
-1. Open the **dashboard**.
-2. See: active projects, upcoming shoots, overdue tasks, deliverables awaiting
-   review, and unpaid invoices.
-3. Work **tasks** to done; update a **shoot's** equipment checklist on the
-   day; add crew notes.
-4. Create/close **deliverables** as edits finish and revision counts increment.
+3.2 Attention before statistics
+The home screen should prioritize things that require action.
+Examples:
+	•	shoot tomorrow;
+	•	overdue task;
+	•	equipment not ready;
+	•	rough cut awaiting review;
+	•	client requested changes;
+	•	payment overdue.
+Metrics are useful only when they help the user act.
+Avoid filling the dashboard with decorative charts or numbers.
 
-### W3 — Get paid
-1. When a project is delivered, raise the **invoice status** (e.g.,
-   `draft → sent → paid`) and record the payment status and due date.
-2. The dashboard surfaces invoices that are overdue or unpaid so none slip.
+3.3 Contextual actions
+Prefer actions that match production language.
+Examples:
+	•	Prepare Shoot
+	•	Open Shoot
+	•	Mark Ready
+	•	Start Post
+	•	Send for Review
+	•	Changes Requested
+	•	Mark Delivered
+	•	Mark Paid
+	•	Wrap Project
+Avoid generic CRUD-style language wherever a more natural production term exists.
 
-### W4 — Keep the record healthy
-- Edit/clarify client details, project notes, dates.
-- Mark projects finished; later **archive** (never accidentally delete) the
-  client/project/related records so history stays intact but out of the way.
+3.4 Low friction
+Common operations should require as few steps as practical.
+The user should not spend more time managing CLCKD than doing their actual work.
+Forms should reveal complexity only when necessary.
+Important information should be visible without repeatedly opening edit screens.
 
----
+3.5 Calm but creative
+CLCKD is professional software for creative people.
+The visual direction should be:
+	•	clean;
+	•	modern;
+	•	confident;
+	•	slightly creative;
+	•	information-dense when useful;
+	•	never corporate-looking;
+	•	never childish;
+	•	never visually noisy.
+Status, progress and urgency should be understandable at a glance.
 
-## 3. MVP features
+4. Core Product Structure
+The primary areas of CLCKD are:
+Home
+The production command center.
+Shows what requires attention now.
+Projects
+The central object around which work is organized.
+Shoots
+Production dates, call times, locations, crew notes and equipment readiness.
+Clients
+People and organizations connected to projects.
+Work
+Tasks and post-production responsibilities associated with projects.
+Deliverables
+Edits, masters, thumbnails, social cuts and other project outputs.
+Money
+Quotes, invoices and payment status.
+Navigation does not need to expose every database entity as an equally important top-level section.
+UX hierarchy should reflect how frequently videographers need each area.
 
-Each item is a concrete, testable capability. IDs reference the data model.
+5. Primary Workflows
+W1 — Take On New Work
+The operator should be able to move naturally from an enquiry or opportunity into an organized production.
+Typical flow:
+Client → Project → Quote → Project preparation → Shoot
+The user can:
+	•	find or create a client;
+	•	create a project;
+	•	define its current stage;
+	•	add planned dates and location;
+	•	record budget and notes;
+	•	record the quote;
+	•	create tasks;
+	•	create one or more shoots.
+This should feel like preparing a job, not filling out a database.
 
-### F1. Clients
-- List, create, edit, archive clients.
-- Fields: name (business or person), preferred contact name, email, phone,
-  address, notes.
-- View linked projects and total outstanding (unpaid invoice) amount per client.
-- On create, a possible duplicate with the same name (case-insensitive) and
-  country is surfaced; saving it remains allowed after explicit user
-  confirmation.
+W2 — Prepare and Run a Shoot
+A shoot workspace should make production readiness obvious.
+The user can see:
+	•	project;
+	•	shoot date;
+	•	call time;
+	•	location;
+	•	crew notes;
+	•	equipment checklist.
+The interface should make incomplete preparation visible without becoming stressful or noisy.
+The operator should be able to quickly check equipment items on a tablet.
 
-### F2. Projects
-- List, create, edit, archive projects.
-- Fields: client link, title, status, start date, target/end date, location,
-  budget, notes.
-- Project detail view aggregates: its shoots, tasks, deliverables, and money
-  (quote + invoices).
+W3 — Daily / Weekly Operation
+Opening CLCKD should immediately surface:
+	•	active projects;
+	•	upcoming shoots;
+	•	overdue tasks;
+	•	deliverables requiring attention;
+	•	unpaid or overdue invoices.
+The user should not need to search through several pages to understand the state of their work.
 
-### F3. Shoots
-- Attach one or more shoots to a project.
-- Fields: date, call time, location, crew notes, equipment checklist
-  (reusable list of items with checked/unchecked state).
-- Dashboard shows upcoming shoots within a configurable window.
+W4 — Post Production
+After production, the focus shifts from the shoot to deliverables.
+The user should be able to understand:
+	•	what is currently being edited;
+	•	what has been submitted;
+	•	what is awaiting client review;
+	•	what received change requests;
+	•	what has been approved;
+	•	what revision is current.
+Revision count changes only when explicitly requested by the user, as defined by the data model.
 
-### F4. Tasks
-- Attach tasks to a project (all tasks in v1 are project-linked).
-- Fields: title, description, priority, due date, status.
-- Filter/sort by status and sort by due date; dashboard shows overdue.
+W5 — Get Paid
+The operator records quote and invoice information associated with the project.
+The interface should clearly distinguish:
+	•	draft;
+	•	sent;
+	•	unpaid;
+	•	partial;
+	•	overdue;
+	•	paid;
+	•	void.
+CLCKD tracks payment status only in v1.
+It does not process payments.
 
-### F5. Deliverables
-- Attach deliverables to a project.
-- Fields: type (e.g., edit, color, audio, thumbnail), due date, review status,
-  revision count, external link.
-- Track client review via review status; revision count increments explicitly.
-- Dashboard shows deliverables awaiting review.
+W6 — Finish and Preserve History
+Completed work should become quiet without disappearing.
+Projects and other archive-protected records are archived rather than permanently deleted.
+Historical client/project information remains accessible.
 
-### F6. Money (quote + invoices)
-- Project has one **quote amount** (what was agreed) with currency.
-- One or more **invoices** per project: amount, currency, invoice status
-  (draft/sent/paid/void), payment status (unpaid/partial/paid/overdue),
-  payment due date.
-- No email, no payment gateways, no PDFs in v1 — status tracking only.
-- Dashboard shows unpaid/overdue invoices and totals.
+6. MVP Capabilities
+Clients
+	•	list clients;
+	•	create clients;
+	•	edit clients;
+	•	archive and restore clients;
+	•	see their projects;
+	•	see outstanding invoice amount;
+	•	warn about possible duplicates.
+Client fields and duplicate rules are defined in docs/data-model.md.
 
-### F7. Dashboard
-A single home page showing:
-- **Active projects** (open statuses), with key dates and owner client.
-- **Upcoming shoots** in the next N days (default 14) sorted by call time.
-- **Overdue tasks** (status not done and due date in the past).
-- **Deliverables awaiting review** (review status = awaiting/under review).
-- **Unpaid invoices** (payment status unpaid/overdue/partial) with amount + due.
-- Quick numbers: counts + total amount due.
+Projects
+	•	list projects;
+	•	create projects;
+	•	edit projects;
+	•	archive and restore projects;
+	•	link each project to a client;
+	•	clearly show current production stage;
+	•	show important dates;
+	•	show location;
+	•	show budget;
+	•	show notes;
+	•	aggregate shoots, tasks, deliverables, quote and invoices.
+A project detail screen should become the operational home of that job.
 
-### F8. Cross-cutting
-- Create, read, and update flows exist for all v1 domain records. Archive and
-  unarchive controls exist for the archive-protected records: `client`,
-  `project`, `shoot`, `task`, `deliverable`, and `invoice`. `quote` and
-  `shoot_equipment_item` have no independent archive state or controls and
-  follow their parent record's visibility.
-- **Deterministic sorting** and **pagination** on all list views.
-- **Full input validation** (per AGENTS.md §3) with human-readable field errors.
-- **Responsive layout**: comfortable on desktop (≥1024px) and tablet
-  (≥600px); touch-friendly tap targets. (Narrow phone is not a v1 target.)
-- **Local persistence**: SQLite under `<repo>/data/` survives restarts.
-- **No external calls**: offline-capable, no telemetry, no analytics.
+Shoots
+	•	one or more shoots per project;
+	•	shoot date;
+	•	call time;
+	•	timezone;
+	•	location;
+	•	crew notes;
+	•	equipment checklist;
+	•	archive/restore according to the data model;
+	•	surface upcoming shoots from Home.
+The shoot interface should prioritize readiness.
 
----
+Tasks
+	•	project-linked tasks;
+	•	title;
+	•	description;
+	•	priority;
+	•	due date;
+	•	status;
+	•	filtering/sorting;
+	•	overdue visibility.
+Tasks are supporting objects.
+CLCKD should not turn into a generic task-manager.
 
-## 4. Non-goals (explicit for v1)
+Deliverables
+	•	project-linked deliverables;
+	•	deliverable type;
+	•	title;
+	•	due date;
+	•	review status;
+	•	revision;
+	•	external link;
+	•	notes;
+	•	archive/restore.
+Post-production status should be understandable without opening every deliverable individually.
 
-- ❌ Multi-user accounts, roles, permissions, concurrent editing.
-- ❌ Authentication/login (single-operator tool; optional in a later version).
-- ❌ Cloud sync, remote backup, web deployment, or any network dependency.
-- ❌ Email/SMTP, notifications, calendar (iCal sync), or reminders pushed
-  anywhere. (In-app due-date display is included; external pushing is not.)
-- ❌ Real invoicing: no PDF generation, no sending, no tax/ledger, no
-  accounting export. (Amount + status + due date only; CSV export of the money
-  tables may be a v1.1 stretch, not promised.)
-- ❌ Payment processing or any connection to a payments provider.
-- ❌ Media: no uploads, no file storage, no transcoding, no previews, no
-  download links we host. Deliverables carry an external *link* string only.
-- ❌ Scheduling optimization, resource/crew allocation, time-sheeting,
-  expenses tracking, or reporting/analytics dashboards beyond the v1 dashboard.
-- ❌ i18n/localization beyond a single default locale (English by default);
-  date-only values preserve their applicable timezone semantics, and event
-  timestamps use UTC, so localization can be added later without data
-  loss.
-- ❌ Mobile phone-optimized UI and any offline *PWA* service-worker sync
-  story. (Local-first persistence is a yes; cross-device sync is a no.)
-- ❌ Automatic backups. Manual export of the SQLite file is documented;
-  scheduling is out of scope.
-- ❌ Permanent hard deletion. v1 has no hard-delete UI, API, or service;
-  archive and unarchive are the only user-visible removal operations.
+Money
+Project-level quote tracking.
+One or more invoices per project.
+Track:
+	•	amount;
+	•	currency;
+	•	invoice status;
+	•	payment status;
+	•	issue date;
+	•	payment due date.
+No payment gateway or accounting system in v1.
 
----
+7. Home / Dashboard
+The Home screen is CLCKD's most important view.
+It should answer:
+What needs my attention?
+It should surface:
+Active Projects
+Prioritize projects currently moving through production.
+Show useful context such as:
+	•	client;
+	•	project stage;
+	•	important date;
+	•	next relevant action.
+Upcoming Shoots
+Default window: next 14 days unless changed in settings.
+Show:
+	•	project;
+	•	shoot date;
+	•	call time;
+	•	location;
+	•	readiness context where available.
+Overdue Tasks
+Only unfinished tasks whose due date has passed.
+Review Queue
+Deliverables currently awaiting or undergoing client review.
+Money Due
+Invoices that remain unpaid, partially paid or overdue.
+Show the amount and due date.
 
-## 5. Acceptance criteria
+8. Interaction Principles
+Show state visually
+The operator should not need to read several fields to understand where a project stands.
+Keep related work together
+When working inside a project, shoots, tasks, deliverables and money should be accessible without mentally leaving that project.
+Reduce navigation
+Frequent operations should be reachable from the page where they make contextual sense.
+Useful empty states
+An empty area should explain what belongs there and offer the relevant action.
+Strong hierarchy
+Urgent work and next actions should be more visually prominent than metadata.
+Avoid administrative language
+Use natural wording wherever possible without hiding the underlying meaning.
 
-These are the verifiable conditions that must all hold for "v1 done." Each maps
-to at least one test (see `docs/implementation-plan.md` acceptance tests).
+9. v1 Technical/Product Boundaries
+v1 remains:
+	•	single-user;
+	•	local-first;
+	•	SQLite-backed;
+	•	usable offline;
+	•	desktop-first;
+	•	tablet-friendly.
+v1 does NOT include:
+	•	authentication;
+	•	multi-user roles;
+	•	cloud synchronization;
+	•	remote backups;
+	•	public web deployment;
+	•	email sending;
+	•	calendar synchronization;
+	•	push notifications;
+	•	payment processing;
+	•	accounting;
+	•	PDF invoice generation;
+	•	media upload/storage;
+	•	transcoding;
+	•	hosted review links;
+	•	advanced analytics;
+	•	crew/resource optimization;
+	•	timesheets;
+	•	expenses;
+	•	phone-first mobile design.
+External links may still be stored where allowed by the data model.
 
-### Data & persistence
-1. After `npm run build` + restart, all previously entered records remain
-   identical (SQLite at `<repo>/data/`).
-2. No record is lost after an unclean shutdown during a write (SQLite WAL
-   journal mode is enabled; a corrupt-write test recovers cleanly).
-3. The six archive-protected record types—clients, projects, shoots, tasks,
-   deliverables, and invoices—can be created, read, updated, archived, and
-   restored through the UI and API/RSC routes. Archived records are absent
-   from default lists and present under "show archived." Quotes and equipment
-   checklist items can be created, read, and updated, but follow their parent
-   record's visibility and have no independent archive controls.
+10. Data and Safety
+docs/data-model.md remains the source of truth for:
+	•	entity fields;
+	•	relationships;
+	•	valid status values;
+	•	status transitions;
+	•	money storage;
+	•	date/time behavior;
+	•	archive behavior;
+	•	database invariants.
+Product UX must respect those rules.
+Do not duplicate detailed schema definitions in this document.
 
-### Correctness
-4. A project cannot be created without a client reference; an orphan record is
-   impossible (FK + server-side validation both enforce).
-5. Money is stored as integer minor units with currency; no floating-point
-   rounding is observable anywhere in the UI (tests assert equality of known
-   values like 0.1 + 0.2 cases).
-6. Status fields only accept the enumerated values in `docs/data-model.md`;
-   a rejected value returns a validation error, never a silent default.
-7. User-facing calendar dates are stored as ISO `YYYY-MM-DD` in the applicable
-   user or record timezone; UTC is not used to reinterpret calendar-day values.
-   `created_at`, `updated_at`, and `archived_at` timestamps are stored as UTC
-   RFC-3339 strings. `shoot.call_time_local` is stored as local `HH:MM` and
-   interpreted with `shoot.location_tz`. Overdue calculations use the user's
-   configured IANA timezone. Tests cover DST boundaries and prevent
-   off-by-one-day behavior.
-
-### Workflow coverage (each W# works end-to-end)
-8. W1: new client → project → quote → task → shoot, all linked, viewable on
-   dashboard within the same session.
-9. W2: a shoot's checklist item toggled on the UI persists; a task moved to
-   done leaves the overdue list.
-10. W3: an invoice moved to `paid` removes it from the unpaid dashboard panel;
-   an invoice past its due date with payment status `unpaid` is surfaced as
-   overdue.
-11. W4: archiving a project hides it and its default-listed children while the
-   data is still present and restorable by "un-archiving."
-
-### Dashboard
-12. The dashboard shows exactly: active projects, upcoming shoots (within the
-    window), overdue tasks, deliverables awaiting review, unpaid invoices —
-    each panel independently correct and independently empty-state handled.
-13. Every panel link navigates to a filtered list of the same items.
-
-### Quality gates (from AGENTS.md §5)
-14. `npm test`, `npm run typecheck`, `npm run lint`,
-    `npm audit --omit=dev --audit-level=high` (0 high/critical), and
-    `npm run build` all pass.
-15. `tsc` strict mode is on; no `any` escapes untrusted boundaries (lint rule
-    enforces).
-16. A security review pass (manual) confirms: no outbound network calls in
-    runtime code, no secrets in the tree, SQLite is the only persistence.
-
-### Responsiveness / usability
-17. Layout is usable at 375×667 (reference only), 768×1024 (tablet, target),
-    and 1280×800 (desktop, target); no horizontal scroll at the target widths;
-    tap targets ≥ 44×44 CSS px.
-
-### Safety
-18. Archiving an entity preserves every referenced record and remains
-    reversible; a test proves the archived record can be restored.
-19. No `git add`-able file contains a secret or real PII; a grep over the
-    committed tree for common secret patterns finds nothing.
-
----
-
-## 6. Success definition (post-ship)
-
-- The operator can run a full day using only the dashboard + one entity list.
-- Nothing on-screen requires the network.
-- Two weeks of real use with zero data loss and zero "lost a record" complaints.
-- Backups are understood: user knows where `data/app.sqlite(-wal)` is.
+11. Success Definition
+v1 succeeds when a solo videographer can manage a normal working day primarily through CLCKD.
+The operator should be able to:
+	•	understand current workload quickly;
+	•	prepare upcoming shoots;
+	•	track each project's production stage;
+	•	know what needs editing or review;
+	•	know what clients owe money;
+	•	complete and archive finished work;
+	•	retain all records reliably.
+The strongest measure of success is:
+The user spends less time managing their management tool.
+CLCKD should disappear into the workflow while keeping the production organized.

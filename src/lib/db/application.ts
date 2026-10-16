@@ -23,6 +23,11 @@ import type Database from "better-sqlite3";
 import { openDatabase } from "./index";
 import { runPendingMigrations } from "./migrations";
 import { createClientRepository, type ClientRepository } from "../clients/repository";
+import {
+  createOperationsRepository,
+  type OperationsRepository,
+} from "../operations/repository";
+import { createProductionRepository, type ProductionRepository } from "../production/repository";
 
 /** Default location of the migration SQL files (relative to the working directory). */
 export const DEFAULT_MIGRATIONS_DIR = path.join(
@@ -118,7 +123,7 @@ export function getApplicationDatabase(): Database.Database {
     }
   }
 
-  const db = openMigratedDatabase();
+  const db = openMigratedDatabase({ dbPath: process.env.CLCKD_DB_PATH });
   globalCache()[GLOBAL_CACHE_KEY] = db;
   return db;
 }
@@ -131,4 +136,16 @@ export function getApplicationDatabase(): Database.Database {
  */
 export function getApplicationClientRepository(): ClientRepository {
   return createClientRepository(getApplicationDatabase());
+}
+
+/** Return the production-workflow repository bound to the application database. */
+export function getApplicationOperationsRepository(): OperationsRepository {
+  return createOperationsRepository(getApplicationDatabase());
+}
+
+/** Apply newly added migrations to a live development connection before use. */
+export function getApplicationProductionRepository(): ProductionRepository {
+  const db = getApplicationDatabase();
+  runPendingMigrations(db, DEFAULT_MIGRATIONS_DIR);
+  return createProductionRepository(db);
 }

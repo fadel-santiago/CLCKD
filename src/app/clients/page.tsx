@@ -1,207 +1,77 @@
-/**
- * Production Batch 2D3 — clients page with mutation controls.
- *
- * - Async server component: no direct SQLite access.
- * - `dynamic = "force-dynamic"` keeps this page out of static generation so
- *   clients are always read at request time.
- * - Data comes from `getApplicationClientRepository()` (the single
- *   application database entry point).
- * - Mutation controls come from `./client-controls` (create, archive,
- *   restore); no raw IDs are rendered as visible text.
- */
+import { requireOwnerPage } from "@/lib/access/server";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getApplicationClientRepository } from "@/lib/db/application";
 import {
-  ClientArchiveControl,
-  CreateClientForm,
-} from "./client-controls";
+  getApplicationClientRepository,
+  getApplicationOperationsRepository,
+} from "@/lib/db/application";
+import { ClientArchiveControl } from "./client-controls";
 import styles from "./clients.module.css";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = { title: "Clients" };
 
-export const metadata: Metadata = {
-  title: "Clients | CLCKD",
-};
-
-const KIND_LABELS: Record<string, string> = {
-  person: "Person",
-  organization: "Organization",
-};
-
-export default async function ClientsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ archived?: string | string[] | null }>;
-}) {
+export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ archived?: string }> }) {
+  await requireOwnerPage();
   const params = await searchParams;
   const showArchived = params.archived === "1";
-
-  const repository = getApplicationClientRepository();
-  const allClients = repository.listClients({ includeArchived: true });
-
-  const activeClients = allClients.filter((client) => client.archived_at === null);
-  const archivedClients = allClients.filter((client) => client.archived_at !== null);
-  const visibleClients = showArchived ? allClients : activeClients;
-
-  const viewLabel = showArchived ? "active and archived" : "active";
+  const clients = getApplicationClientRepository().listClients({ includeArchived: true });
+  const projects = getApplicationOperationsRepository().listProjects({ includeArchived: true });
+  const visible = showArchived ? clients : clients.filter((client) => client.archived_at === null);
+  const projectCounts = new Map<string, number>();
+  for (const project of projects) projectCounts.set(project.client_id, (projectCounts.get(project.client_id) ?? 0) + 1);
 
   return (
-    <div className={styles.page}>
-      <header className={styles.header}>
-        <div className={styles.headerInner}>
-          <div className={styles.brandRow}>
-            <span className={styles.brand}>CLCKD</span>
-            <nav className={styles.nav} aria-label="Primary">
-              <Link href="/" className={styles.navLink}>
-                Home
-              </Link>
-            </nav>
-          </div>
-          <div className={styles.intro}>
-            <h1 className={styles.title}>Clients</h1>
-            <p className={styles.description}>
-              The people and organizations you film for — who to contact, how to
-              reach them, and where they are based. Add new clients and archive
-              or restore them below.
-            </p>
-          </div>
+    <main className="page">
+      <header className="pageHeader">
+        <div>
+          <span className="eyebrow">Relationships</span>
+          <h1 className="pageTitle">Clients</h1>
+          <p className="pageLead">The people behind the work, with their productions one click away.</p>
+        </div>
+        <div className="pageActions">
+          <Link href={showArchived ? "/clients" : "/clients?archived=1"} className="button buttonQuiet">{showArchived ? "Active clients" : "Include archived"}</Link>
+          <Link href="/clients/new" className="button buttonPrimary">New client</Link>
         </div>
       </header>
 
-      <main className={styles.main}>
-        <section aria-label="Client counts" className={styles.summary}>
-          <div className={styles.summaryCard}>
-            <span className={styles.summaryLabel}>Active clients</span>
-            <span className={styles.summaryValue}>{activeClients.length}</span>
-          </div>
-          <div className={styles.summaryCard}>
-            <span className={styles.summaryLabel}>Archived clients</span>
-            <span className={styles.summaryValue}>{archivedClients.length}</span>
-          </div>
+      <section className={styles.summary} aria-label="Client summary">
+        <div><span>Active</span><strong>{clients.filter((client) => client.archived_at === null).length}</strong></div>
+        <div><span>Archived</span><strong>{clients.filter((client) => client.archived_at !== null).length}</strong></div>
+        <div><span>Projects linked</span><strong>{projects.length}</strong></div>
+      </section>
+
+      {visible.length === 0 ? (
+        <section className="emptyState"><h3>No clients in this view</h3><p>Add your first client, then turn the conversation into a project.</p><div className="formActions"><Link href="/clients/new" className="button buttonPrimary">Add a client</Link></div></section>
+      ) : (
+        <section className={styles.grid} aria-label="Clients">
+          {visible.map((client) => {
+            const location = [client.city, client.country].filter(Boolean).join(", ");
+            const archived = client.archived_at !== null;
+            return (
+              <article className={styles.card} key={client.id} data-archived={archived}>
+                <div className={styles.cardTop}>
+                  <span className="statusBadge" data-tone={archived ? undefined : "success"}>{archived ? "Archived" : "Active"}</span>
+                  <span className={styles.kind}>{client.kind === "organization" ? "Studio / brand" : "Individual"}</span>
+                </div>
+                <div>
+                  <h2><Link href={`/clients/${client.id}`}>{client.name}</Link></h2>
+                  <p>{client.preferred_contact_name ?? "No preferred contact"}</p>
+                </div>
+                <dl className="detailList">
+                  <div><dt>Projects</dt><dd>{projectCounts.get(client.id) ?? 0}</dd></div>
+                  <div><dt>Based in</dt><dd>{location || "Not recorded"}</dd></div>
+                  <div><dt>Contact</dt><dd>{client.email ?? client.phone ?? "Not recorded"}</dd></div>
+                </dl>
+                <div className={styles.cardActions}>
+                  <Link href={`/clients/${client.id}`} className="button buttonSecondary">Open client</Link>
+                  <ClientArchiveControl id={client.id} archived={archived} />
+                </div>
+              </article>
+            );
+          })}
         </section>
-
-        <CreateClientForm />
-
-        <div className={styles.toolbar}>
-          <h2 className={styles.viewHeading}>
-            Showing {visibleClients.length} {visibleClients.length === 1 ? "client" : "clients"}
-            <span className={styles.viewNote}> · {viewLabel}</span>
-          </h2>
-          <nav className={styles.toggle} aria-label="Client archive view">
-            <Link
-              href="/clients"
-              className={styles.toggleLink}
-              aria-current={!showArchived ? "page" : undefined}
-              data-active={!showArchived}
-            >
-              Active
-            </Link>
-            <Link
-              href="/clients?archived=1"
-              className={styles.toggleLink}
-              aria-current={showArchived ? "page" : undefined}
-              data-active={showArchived}
-            >
-              All
-            </Link>
-          </nav>
-        </div>
-
-        {visibleClients.length === 0 ? (
-          <section className={styles.empty} aria-label="No clients in this view">
-            <h2 className={styles.emptyTitle}>
-              {showArchived ? "No clients yet" : "No active clients yet"}
-            </h2>
-            <p className={styles.emptyBody}>
-              {showArchived
-                ? "When your clients are added, they will appear here as cards with their contact details."
-                : "When you add your first client, they will appear here as a card with their contact details."}
-            </p>
-            <p className={styles.emptyHint}>
-              Use the form above to add your first client.
-            </p>
-          </section>
-        ) : (
-          <section aria-label={`Clients (${viewLabel})`} className={styles.grid}>
-            {visibleClients.map((client) => {
-              const isArchived = client.archived_at !== null;
-              const location = [
-                client.city,
-                client.country,
-              ]
-                .filter((part): part is string => part !== null && part !== "")
-                .join(", ");
-
-              return (
-                <article
-                  key={client.id}
-                  className={styles.card}
-                  data-archived={isArchived}
-                >
-                  <div className={styles.cardHead}>
-                    <h3 className={styles.cardName}>{client.name}</h3>
-                    <span className={styles.cardStatus} data-archived={isArchived}>
-                      {isArchived ? "Archived" : "Active"}
-                    </span>
-                  </div>
-
-                  <dl className={styles.cardDetails}>
-                    <div className={styles.detailRow}>
-                      <dt className={styles.detailLabel}>Type</dt>
-                      <dd className={styles.detailValue}>
-                        {KIND_LABELS[client.kind] ?? client.kind}
-                      </dd>
-                    </div>
-                    {client.preferred_contact_name !== null && (
-                      <div className={styles.detailRow}>
-                        <dt className={styles.detailLabel}>Contact</dt>
-                        <dd className={styles.detailValue}>
-                          {client.preferred_contact_name}
-                        </dd>
-                      </div>
-                    )}
-                    {client.email !== null && (
-                      <div className={styles.detailRow}>
-                        <dt className={styles.detailLabel}>Email</dt>
-                        <dd className={styles.detailValue}>{client.email}</dd>
-                      </div>
-                    )}
-                    {client.phone !== null && (
-                      <div className={styles.detailRow}>
-                        <dt className={styles.detailLabel}>Phone</dt>
-                        <dd className={styles.detailValue}>
-                          <span dir="ltr">{client.phone}</span>
-                        </dd>
-                      </div>
-                    )}
-                    {location !== "" && (
-                      <div className={styles.detailRow}>
-                        <dt className={styles.detailLabel}>Based in</dt>
-                        <dd className={styles.detailValue}>{location}</dd>
-                      </div>
-                    )}
-                  </dl>
-
-                  <ClientArchiveControl
-                    id={client.id}
-                    archived={client.archived_at !== null}
-                  />
-                </article>
-              );
-            })}
-          </section>
-        )}
-      </main>
-
-      <footer className={styles.footer}>
-        <div className={styles.footerInner}>
-          <span>CLCKD — management software for videographers.</span>
-          <Link href="/" className={styles.footerLink}>
-            Back to home
-          </Link>
-        </div>
-      </footer>
-    </div>
+      )}
+    </main>
   );
 }

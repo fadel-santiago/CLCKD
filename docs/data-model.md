@@ -1,5 +1,110 @@
 # Data Model — CLCKD v1
 
+Implementation extension — local access (migration 0006)
+
+`owner_account` is singleton local configuration (id = 1), display_name,
+scrypt password_hash, access_mode = local_owner and UTC created_at. It does not
+claim a paid subscription. `access_invitation` has ULID id, project_id FK,
+recipient_name, unique SHA-256 token_hash, share_payments, and UTC created_at,
+expires_at, claimed_at and revoked_at. `invitation_output` has composite PK
+(invitation_id, deliverable_id); service validation restricts grants to that
+invitation's active project. `access_session` uses SHA-256 token_hash PK,
+role owner/project_viewer, nullable invitation_id/project_id, UTC created_at,
+expires_at/revoked_at; a CHECK binds viewer sessions to both project/invitation
+and owner sessions to neither. `access_attempt` holds cooldown buckets.
+These security/configuration records intentionally do not follow entity ULID
+or updated_at conventions. All FKs use RESTRICT. Logout/revocation updates rows,
+not business data. A maintenance down migration retains access tables as archives.
+
+Owner pages, metadata and mutations check owner sessions. Mutations also require
+a same-origin local request. Client reads require a non-expired session and
+active non-revoked invitation, project and client. Their allowlisted DTO contains
+only selected output specifications/current submitted links and optionally the
+commercial schedule, excluding raw receipt evidence, private notes and tokens.
+The local bootstrap code has 12 uniformly random base-32 characters (60 bits),
+grouped XXXX-XXXX-XXXX in an ignored, mode-0600 file, not a web response.
+It is case-insensitive and ignores spaces/hyphens. Legacy 256-bit setup secrets
+are deterministically converted to this short format; previously copied long
+codes remain compatible. Only initial owner setup accepts this code, with five
+attempts per 15 minutes; later sign-ins require the owner passphrase.
+Invitation and session secrets remain random 256-bit values;
+raw invite tokens are returned to the authenticated owner once, not persisted.
+
+Implementation extension — payment agreements (migration 0003)
+
+`production_payment_plan` retains versioned commercial schedules using composite
+PK (project_id, revision), integer total_minor_units, supported currency,
+optional contract_reference/terms and UTC timestamps. `production_payment_milestone`
+stores a ULID id, project_id/plan_revision FK, position, title, integer basis_points,
+integer amount_minor_units, payment_condition, optional calendar due_date,
+optional paid_at/payment_reference and UTC timestamps. Percentages total exactly
+10000 basis points. Largest-remainder integer allocation sums exactly to the fee.
+Every milestone must receive at least one minor unit. Previous schedules remain
+stored; replacing a schedule checks its expected revision, disallows recorded
+payments and reopens scope confirmation. No application deletion is exposed.
+Payment receipt and corrections are manual, acknowledged and appended to
+production_event. They do not update approvals, invoice statuses or move funds.
+Contract text is a record of external terms, not a signed legal agreement.
+These tables follow the parent project's archive visibility.
+
+Migration 0004 adds `work_gate`: none/production/post_production/delivery,
+default none to preserve existing agreements. An unpaid configured milestone
+blocks its app phase transition, review submission (production/post-production)
+or delivery action. Payment gates also apply to generic project status updates.
+Shoot completion can be recorded after production payment even when the
+post-production advance remains outstanding; editing stays gated. External work
+and bank transfers cannot be controlled by these application rules.
+
+Migration 0005 handles the development preview's early unversioned payment
+draft and the versioned draft. It copies each record into the canonical
+versioned schema, retains original tables as draft archives, and preserves
+receipt references, work gates and plan revisions. Compatibility fixtures test
+both shapes and foreign-key integrity. No application route accesses archives.
+
+The local client-preview tab is read-only, refreshes recorded progress, and
+contains current outputs/review links and payment milestones. It is not an
+authenticated or externally shared client portal. Its five checkpoints are not
+an estimate of hours worked. HTTPS review links are accepted; plausible
+bare web addresses are normalized to HTTPS. Unsafe schemes and credentials in
+links are rejected. Hosted service links open externally; direct video links
+can be played without automatically preloading third-party media.
+
+Implementation extension — production workflow (migration 0002)
+
+`production_project` extends `project` one-to-one using `project_id` as its PK:
+production_type (film/photography/event/custom), nullable approver_name,
+scope_revision >= 1, nullable scope_confirmed_at and shoot_completed_at, plus
+created_at and updated_at. `output_spec` extends `deliverable` one-to-one using
+deliverable_id: nullable format, quantity 1..999, revision_allowance 0..20 and
+created_at/updated_at. These extension PKs are intentional exceptions to the
+regular entity ULID-id convention.
+
+`output_version` uses composite PK (deliverable_id, revision). It stores title,
+link, change_note, feedback, review_status, nullable submitted_at/approved_at/
+approved_by/delivered_at and created_at/updated_at. The recorded approver is
+preserved even if the project's current approver later changes. Submitted title/link/change_note are
+immutable. Delivery requires approval. New revisions are explicitly requested
+and never inherit approval or delivery. Legacy rows preserve their revision and
+status without inventing client attribution or timestamps.
+
+`production_event` is an append-only record with ULID id, project_id, nullable
+deliverable_id/revision, kind, nullable attributed_to/details, source fixed to
+local_operator, and created_at. It intentionally has no updated_at. This is a
+production-decision history, separate from optional archive/unarchive auditing.
+Recording client approval means the local operator reports the named person's
+decision; it does not establish an authenticated signature.
+
+All new FKs use ON DELETE RESTRICT. Extension/version/event records follow their
+parent's archive visibility. Their timestamp columns use TEXT RFC-3339 UTC.
+Version-specific approval withdrawal is allowed before delivery and adds an
+event; after delivery a correction request leaves approval and delivery intact.
+Review submissions and decisions check the active project/output and expected
+revision/link/scope revision inside a transaction. Wrapping requires confirmed scope and every active output's
+current version delivered; external payment status is unaffected.
+
+These explicit versioned-workflow rules govern managed outputs; the original
+entity definitions below retain their legacy storage compatibility.
+
 The single source of truth for the SQLite schema, the allowed value sets, the
 money and date rules, and how deletion/archive works. **Nothing in this file is
 optional**: implementation, migrations, and validators all conform to it.
@@ -381,8 +486,9 @@ code (TEXT). Never float, never decimal, never string.** Concretely:
    `shoot.shoot_date` using `shoot.location_tz` and every other calendar date
    using `kv_meta.default_timezone`.
 8. **Migration:** any new column that looks date-like must be declared with
-   an explicit zone column or with a named constant; the checker script in
-   the implementation-plan M1 enforces this by inspecting the migration file.
+   an explicit zone column or with a named constant. Review migration SQL
+   against these rules; the earlier plan's automated column-zone checker
+   is not currently implemented.
 9. **Timezone changes for existing data** are out of scope in v1. If the user
    changes `default_timezone`, it affects *future* "today" comparisons, not
    historical record dates. (This is a documented limitation.)

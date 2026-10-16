@@ -1,0 +1,5 @@
+-- Maintenance only: retain new data in archives rather than deleting it.
+ALTER TABLE production_payment_plan RENAME TO production_payment_plan_versioned_archive;
+ALTER TABLE production_payment_milestone RENAME TO production_payment_milestone_versioned_archive;
+ALTER TABLE production_payment_plan_draft_archive RENAME TO production_payment_plan;
+ALTER TABLE production_payment_milestone_draft_archive RENAME TO production_payment_milestone;

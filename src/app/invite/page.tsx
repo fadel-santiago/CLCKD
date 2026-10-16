@@ -1,0 +1,3 @@
+import { InviteForm } from "./invite-form";
+export const metadata = { title: "Project invitation", robots: { index: false, follow: false } };
+export default function InvitePage() { return <main className="page"><header className="pageHeader"><div><span className="eyebrow">A clear view of the work</span><h1 className="pageTitle">Your project invitation.</h1><p className="pageLead">Read-only project access. No workspace signup or subscription management.</p></div></header><InviteForm /><p className="fieldHint">Local access pilot · links are not independently verified identity or work credentials.</p></main>; }
