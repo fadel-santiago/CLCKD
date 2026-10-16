@@ -7,6 +7,7 @@
     "node": ">=20.19.2"
   },
   "scripts": {
+    "setup:local": "tsx scripts/setup-local.ts",
     "dev": "next dev -H 127.0.0.1 -p 3300",
     "start": "next start -H 127.0.0.1 -p 3300",
     "build": "next build",

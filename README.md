@@ -1,197 +1,321 @@
-# CLCKD
+<div align="center">
 
-## Focus production workflow
+<h1>CLCKD</h1>
+<p><strong>Creative production, organized.</strong></p>
 
-Open `http://127.0.0.1:3300/`, choose New project, define a client, named approver
-and output specifications, then use Brief → Outputs → Shoot → Review → Delivery.
-Film and photography presets create separate outputs. Record the scope agreed
-outside CLCKD, submit HTTPS review links (bare web addresses are normalized), explicitly confirm reported approvals,
-and record each external handover. Undo before delivery preserves the original
-event; after delivery record a correction request. Wrap requires all outputs
-delivered. Reloading or restarting retains the project and version history.
+<p>A local-first production workspace for independent videographers,<br />photographers, and creative studios.</p>
 
-This is a local access pilot: owner sign-in protects management pages/actions,
-and one-use, expiring invitations grant a project-scoped read-only client session.
-Public sharing, client identity verification, payment processing and subscriptions
-are not implemented. Recorded
-client decisions are reports entered by the operator, not verified signatures.
-Existing projects are migrated without fabricated approval or delivery history.
-The pre-workflow database backup is git-ignored at
-`data/app.before-focus-20261011.sqlite` when an existing database was present.
+<p>
+<img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-171b20?style=flat-square" />
+<img alt="React 19" src="https://img.shields.io/badge/React-19-171b20?style=flat-square" />
+<img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-strict-171b20?style=flat-square" />
+<img alt="SQLite" src="https://img.shields.io/badge/SQLite-local-171b20?style=flat-square" />
+</p>
 
-For isolated local browser testing, `CLCKD_DB_PATH` can override the runtime
-database path. Default storage remains `data/app.db`. Tests use temporary
-databases and must never seed or clear the real application database.
+<p><a href="#getting-started">Run locally</a> · <a href="#core-features">Explore the workspace</a> · <a href="#architecture">Architecture</a> · <a href="#testing-and-engineering-quality">Engineering</a></p>
 
-## Owner and client access (local pilot)
+</div>
 
-On first launch, open `/access`. Read the one-time 12-character setup code
-(formatted `XXXX-XXXX-XXXX`; spaces, hyphens and letter case are ignored) from the local
-`data/owner-setup-code` file using the command shown on that page, then choose
-your own passphrase (at least 15 characters). Do not paste secrets into chats.
-The setup code is created with owner-only file permissions and is never returned
-by a web endpoint. There is one local owner, not a public registration flow.
-Older 64-character setup files are automatically converted to the short format;
-previously copied long codes still work. The five-attempt/15-minute safeguard
-remains in place. Setup is one-time; subsequent sign-ins need only the passphrase.
-Owner sessions last eight hours. Keep your passphrase safe: account recovery is
-not yet implemented. Existing production data is preserved by setup.
+![CLCKD dashboard with an active campaign, upcoming shoot, review queue and tasks to follow up](docs/screenshots/01-dashboard.png)
 
-Open a project → Client access → Create a read-only invitation. Select the
-outputs whose submitted review links may be shared; payment terms are optional.
-Copy the one-use invitation and open it in a private browser window for testing.
-The token is a URL fragment, removed from the address bar before claim; only
-hashed tokens are stored. Invitations expire after 1/7/30 days and can be revoked,
-which also blocks active client sessions. A shared output includes future
-submitted versions; unsubmitted draft links and unselected outputs are excluded.
+**A production desk, not another spreadsheet.** Keep the brief, shoot, outputs,
+revisions and external payment schedule connected to the same project.
+Open Today to see what needs attention; open a production to take its next step.
 
-Guest requests are checked against their assigned project on every read. They
-receive a separate minimal payload, not internal notes, other projects, private
-receipt evidence or management actions. Changes to the URL or cookie name do
-not grant owner access. All owner mutations require an authenticated owner and
-a matching request origin. Credentials are scrypt-hashed; sessions use opaque
-random tokens in HttpOnly, SameSite=Strict cookies. HTTP cookies are local-only:
-the pilot rejects non-localhost request hosts and cannot be publicly deployed
-as a paid service without further authentication, billing and launch hardening.
-Invitations prove possession of an access link, not a verified person, approval
-signature or work credential. External media hosts control download/privacy.
+> **Working local application · active development.** One workspace owner with
+> restricted local client-viewer access. Not a public multi-tenant SaaS, payment
+> processor or digital-signature service. All screenshots use fictional data.
 
-CLCKD is a local-first production management application for solo videographers and very small video-production teams.
+## The problem → one connected workflow
 
-It helps manage the complete operational lifecycle around video work:
+Creative work rarely stays in one place. Client details sit in a spreadsheet,
+the brief in a document, shoot times in a message, feedback in another thread,
+and payment reminders somewhere else. The difficult question becomes:
+*what is the next agreed step, and what is it waiting on?*
 
-Client
-→ Project
-→ Shoot
-→ Post Production
-→ Review
-→ Delivery
-→ Payment
+CLCKD keeps that operational context together. Define the outputs and the
+commercial milestones, plan production, preserve each submitted version,
+record reported decisions, and track external handover without confusing
+approval, delivery and payment.
 
-CLCKD is designed to feel like a production workspace rather than generic CRM or enterprise project-management software.
+## Core features
 
----
+| Workspace | What is implemented |
+| --- | --- |
+| **Today** | Current production, upcoming shoots, outputs awaiting review or changes, and overdue tasks. |
+| **Clients** | Contact details, linked projects, editing, duplicate confirmation and archive/restore workflows. |
+| **Projects** | Production slate, guided creation, named approver, agreed scope and separate film/photography outputs. |
+| **Shoot & Work** | Dated shoots with local call times, IANA timezones, locations and crew notes; tasks with priorities, deadlines and status updates. |
+| **Outputs & Review** | Output specifications and quantities, included revision rounds, HTTPS review links, retained version history and operator-recorded approval/change requests. |
+| **Delivery** | Version-specific external handover records; wrapping requires all active outputs to be delivered. Accidental approvals can be undone before delivery; later corrections remain in history. |
+| **Commercial records** | Quotes and invoices within project details, plus 50/50, 30/30/40, equal-fifths or custom external payment schedules. Configured receipts can gate the app's production, editing and delivery steps. |
+| **Client visibility** | Owner preview and expiring, revocable, one-use invitations for project-scoped read-only local access. Share selected submitted outputs and optionally payment terms. |
 
-## Status
+### From client relationship to production slate
 
-**Active development — v1**
+![Fictional clients with linked project counts and contact details](docs/screenshots/02-clients.png)
 
-The project already contains application infrastructure and working functionality.
+*Client records connect directly to their productions. Contact addresses use
+the reserved example.com domain.*
 
-The current development focus is building the core production experience on top of the existing technical foundation.
+<details>
+<summary>See booked, in-progress and completed productions</summary>
 
----
+![Projects at booked, post-production and completed stages](docs/screenshots/03-projects.png)
 
-## v1 Areas
+*Three fictional productions, with their actual stored statuses.*
 
-CLCKD manages:
+</details>
 
-* Clients
-* Projects
-* Shoots
-* Tasks
-* Deliverables
-* Quotes
-* Invoices
-* Production dashboard
+### A brief the work can follow
 
-All v1 application data is stored locally in SQLite.
+![Project workspace showing agreed scope, output specifications and production tabs](docs/screenshots/04-project-workspace.png)
 
----
+*The brief connects the approver, timeline and agreed outputs. Scope changes
+invalidate the recorded confirmation rather than silently replacing it.*
 
-## Product Boundaries
+<details>
+<summary>Explore shoot planning and actionable tasks</summary>
 
-v1 is:
+![Scheduled shoot with call time, timezone, crew notes and production actions](docs/screenshots/05-production-workflow.png)
 
-* single-user;
-* local-first;
-* desktop-first;
-* tablet-friendly;
-* offline-capable.
+*Schedule a production day with location and crew context.*
 
-v1 does not include:
+![Project tasks with deadlines and status controls](docs/screenshots/09-task-management.png)
 
-* cloud sync;
-* public registration and cloud account services;
-* multi-user accounts;
-* public deployment;
-* payment processing;
-* media hosting/transcoding;
-* email/calendar integrations.
+*Work stays inside its project, with concrete next actions.*
 
----
+</details>
 
-## Documentation
+### One output. One version. One decision.
 
-### `AGENTS.md`
+![Second social-edit version awaiting review with first-version feedback preserved](docs/screenshots/06-review-delivery.png)
 
-Persistent instructions for coding agents working on CLCKD.
+*Version 2 awaits review while version 1 retains its requested changes.
+These are operator-entered records, not independently verified client decisions.*
 
-### `docs/product-plan.md`
+<details>
+<summary>See delivery records and the client-facing preview</summary>
 
-Product vision, target user, workflows, UX philosophy and v1 feature scope.
+![Approved brand film with recorded external delivery](docs/screenshots/10-delivery-record.png)
 
-### `docs/data-model.md`
+*This output was delivered; the other outputs keep the project open.
+Delivery does not mark an invoice or milestone paid.*
 
-Authoritative technical contract for entities, fields, relationships, statuses, money, dates and archive behavior.
+![Owner preview of project progress, submitted links and payment milestones](docs/screenshots/11-client-preview.png)
 
-### `docs/implementation-plan.md`
+*The owner's Client preview tab shows recorded progress. This screenshot is
+not a claimed guest session or a publicly shared portal.*
 
-Current development roadmap and feature-level implementation phases.
+</details>
 
----
+### Payment milestones, without handling money
 
-## Development
+![Fictional EUR12000 agreement with 30/30/40 milestones and two external receipts recorded](docs/screenshots/07-finances.png)
 
-Typical commands:
+*The fictional €12,000 agreement records €7,200 received externally and €4,800
+remaining. CLCKD neither moves nor verifies funds. Milestone records and
+invoices are separate; there is no automatic reconciliation.*
+
+<details>
+<summary>See the responsive project slate</summary>
+
+<img src="docs/screenshots/08-mobile.png" alt="CLCKD project slate in a narrow mobile browser viewport" width="320" />
+
+*Real browser capture at a 390 × 844 viewport, expanded to full page.
+This is responsive web UI, not a native app.*
+
+</details>
+
+Capture conditions and visual verification limits are documented in
+[the screenshot notes](docs/screenshots/README.md).
+
+## How CLCKD works
+
+**Client → Project → Production → Review → Delivery → Completion**
+
+1. **Client:** select an existing relationship or create one during project setup.
+2. **Project:** name the approver, define each output and optionally agree an
+   external payment schedule. Record the scope confirmed outside CLCKD.
+3. **Production:** plan shoots and tasks. Record any required external advances
+   before opening their gated phase.
+4. **Review:** submit an HTTPS-hosted version. Record approval received or
+   requested changes; a new revision keeps the earlier version and its feedback.
+5. **Delivery:** record external handover for each approved output version.
+6. **Completion:** wrap when every active output has been delivered.
+   Outstanding payments remain separate records.
+
+## Architecture
+
+A single Next.js application serves the UI and server-side application logic.
+There is no separate backend service or remote database to provision.
+
+```mermaid
+flowchart TD
+    Owner["Owner browser"] --> Pages["Next.js App Router pages"]
+    Guest["Invited local viewer"] --> Viewer["Read-only project route"]
+    Pages --> Actions["Server Actions"]
+    Pages --> Guard["Server-side access checks"]
+    Actions --> Guard
+    Viewer --> Guard
+    Guard --> Validation["Zod validation and domain repositories"]
+    Validation --> DB[("SQLite via better-sqlite3")]
+    Migrations["Versioned SQL migrations"] --> DB
+    Pages -. "User opens submitted link" .-> Media["External media host"]
+```
+
+| Layer | Technology and responsibility |
+| --- | --- |
+| Interface | **Next.js 16, React 19, CSS Modules** — server-rendered pages and interactive project controls. |
+| Application | **TypeScript, Server Actions, Zod** — validated mutations and domain-specific production rules. |
+| Persistence | **SQLite / better-sqlite3** — local relational storage, foreign keys, WAL mode and transactional migrations. |
+| Access | Local owner passphrase and server-checked sessions; scoped invitations for read-only viewers. |
+| Verification | **Vitest**, strict TypeScript and ESLint; isolated temporary databases for integration tests. |
+
+**Local-first means local storage, not cloud sync.** The default database is
+`data/app.db`. Six paired SQL migrations are discovered and applied through
+the existing migration runner. The explicit setup command initializes a fresh
+database; application startup also applies pending migrations when it opens
+the database. Back up existing data before upgrading.
+
+Media stays on its external host. CLCKD stores links and version metadata,
+not uploaded video files or transcoded previews. Opening external media
+requires access to that host.
+
+## Getting started
+
+### Requirements
+
+- **Node.js 22.23.3** and npm; use the repository's `.nvmrc` with an existing nvm installation.
+- GitHub authentication with access to this currently private repository.
+- No Odysseus, Docker, remote database, API keys or preconfigured credentials.
 
 ```bash
+git clone --branch main https://github.com/fadel-santiago/CLCKD.git
+cd CLCKD
+nvm install
+nvm use
 npm ci
+npm run setup:local
 npm run dev
+```
+
+Open **[127.0.0.1:3300/access](http://127.0.0.1:3300/access)**.
+
+Enter your name, the **actual setup code printed in your terminal**, and a
+passphrase of at least 15 characters. The code is a one-time setup safeguard,
+not your sign-in passphrase. Choose New project from Today to begin.
+
+The setup command creates the database and private setup-code file. It does
+**not** create an owner or seed demonstration data. Running it again preserves
+existing data and credentials; once an owner exists it no longer prints the
+code. Save your passphrase securely: built-in account recovery is not implemented.
+Never delete the database to work around a forgotten passphrase.
+
+### Optional configuration
+
+No environment file is required. For overrides, copy
+[.env.example](.env.example) to `.env.local`. Setup and Next.js load the same
+environment files; explicit shell variables take precedence.
+
+- `CLCKD_DB_PATH` changes the database location; the setup code lives beside it.
+  Keep that location private and excluded from Git.
+- Do not pin `NODE_ENV` in an environment file.
+- Development and local production startup bind to `127.0.0.1:3300`.
+  If occupied, use `npm run dev -- --port 3301` and open that port.
+- For a production-mode **local** run, stop the dev server, run
+  `npm run build`, then `npm start`. This does not enable public hosting.
+
+### Native dependency troubleshooting
+
+Install dependencies in the **same OS and Node version** used to run the app.
+Do not share `node_modules` between macOS and Linux. A missing SQLite native
+binding requires a fresh `npm ci` in the intended runtime. If no prebuilt
+binary is available, compilation requires Python 3 and platform C/C++ tools
+(Xcode Command Line Tools on macOS).
+
+The clean-install verification used **macOS ARM64 with Node 22.23.3**.
+Node 24.19.0 triggered a native SQLite cleanup assertion in the test suite;
+use the pinned runtime. Other platforms have not received the same clean-install
+verification.
+
+## Testing and engineering quality
+
+```bash
 npm test
 npm run typecheck
 npm run lint
+npm audit --omit=dev --audit-level=high
 npm run build
 ```
 
-The development server is intended for local use. Use Node.js >=20.19.2 and
-install dependencies in the same operating system/container that runs the app;
-`better-sqlite3` uses native binaries. Run verification in a separate terminal
-from the development server. Pending SQL migrations apply automatically when
-the server first opens the application database; there is no `db:migrate` script.
+**Recorded local baseline — 16 October 2026:** 222 tests across 15 files passed
+in an isolated clean installation with Node 22.23.3 on macOS ARM64.
+Typecheck, lint and production build passed; the production dependency audit
+reported zero vulnerabilities at that checkpoint. These are recorded local
+results, not a claim of continuous integration or a permanent security guarantee.
 
-For a host-only launch, first open `/access`, then read the generated setup code
-locally (do not share the output):
+Engineering decisions represented in the source:
 
-```bash
-node -e 'process.stdout.write(require("node:fs").readFileSync("data/owner-setup-code", "utf8"))'
-```
+- Strict TypeScript and Zod input schemas; parameterized SQL.
+- Transactional migration application with a schema-version ledger.
+- Integer minor-unit money values; exact percentage allocation across milestones.
+- Retained output versions and decision/correction history.
+- Archive/restore rather than application-level hard deletion.
+- Scrypt-hashed owner passphrases; opaque sessions in HttpOnly, SameSite=Strict cookies.
+- Server-enforced owner mutations, matching-origin checks and project-scoped guest reads.
 
-The Docker command on the setup screen applies only when using the existing
-`clckd-preview` container. Project-owned Docker packaging is not yet provided.
+Tests use temporary databases. For manual experiments, set `CLCKD_DB_PATH`
+to a separate temporary path for **both setup and startup**. Never seed, clear
+or reuse the business database as a test fixture.
 
-Runtime application data lives under `data/` and must remain out of Git.
+## Current scope and limitations
 
----
+- **Local pilot, not launch-ready SaaS.** One owner; no public signup, tenant
+  isolation, subscriptions, cloud sync or account recovery. Non-local request
+  hosts are rejected. HTTP session cookies are designed for the localhost pilot,
+  not public deployment.
+- **Restricted viewers, not full collaborators.** One-use invitations expire and
+  can be revoked, including their sessions. Viewers see their assigned project,
+  selected submitted outputs and optionally commercial terms. They cannot manage
+  projects, record payments or approve work. Public remote sharing is not enabled.
+- **Records, not guarantees.** Scope confirmation and approvals are reported by
+  the operator, not digital signatures or independently verified identities.
+  No escrow, payment processing, automatic bank verification or work certificates.
+- **External media.** Links do not confer publication rights, prevent downloads
+  or replace the hosting provider's privacy/access controls. Screenshot review
+  URLs are fictional placeholders, not playable demo films.
+- **Focused modules.** Shoot planning and tasks are project-based. There is no
+  standalone calendar or settings screen, complete equipment-checklist editor,
+  or automated reconciliation between invoice and milestone records.
+- **Verification boundaries.** Browser walkthroughs and integration tests do not
+  establish public-deployment security, full accessibility conformance or
+  exhaustive cross-device compatibility.
 
-## Guiding Principle
+## Roadmap
 
-CLCKD should make running video work simpler.
+| Horizon | Focus |
+| --- | --- |
+| **Implemented** | Connected local client/project workflow, production planning, versioned review, delivery, external payment milestones and restricted local access. |
+| **Near term** | Broader clean-install checks, repeatable browser smoke tests, owner recovery design and tighter invoice/milestone clarity. |
+| **Potential hosted release** | Separate security and tenancy design, hosted identity, subscription access, remote invitations, backups and operational monitoring. Not a commitment or supported deployment mode today. |
 
-The user should open it and quickly understand:
+Reuse the existing application and domain model; prioritize a small,
+reproducible workflow before expanding the platform.
 
-* what needs attention;
-* what is being shot next;
-* where projects stand;
-* what needs review;
-* what is still unpaid.
+## Project documentation
 
-The application should reduce management overhead rather than create more of it.
+- [Product direction](docs/product-plan.md) — users, workflows and boundaries.
+- [Data model](docs/data-model.md) — entities and technical invariants.
+- [Implementation plan](docs/implementation-plan.md) — development phases.
+- [Screenshot notes](docs/screenshots/README.md) — real capture provenance and limitations.
+- [Agent rules](AGENTS.md) — repository working conventions.
 
----
+## Author & portfolio
 
-## License
+Built by **[Fadel Santiago](https://github.com/fadel-santiago)** as an independent
+full-stack engineering portfolio application.
 
-Proprietary — all rights reserved.
-
----
+CLCKD demonstrates a connected product workflow backed by relational data,
+validation, transactional state changes and tests. The screenshots show the
+real local application with fictional records—not a static UI concept.
