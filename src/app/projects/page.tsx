@@ -1,3 +1,4 @@
+import { OwnerOnly } from "@/app/demo-viewer";
 import { requireWorkspaceRead } from "@/lib/access/server";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -33,7 +34,7 @@ export default async function ProjectsPage({
           <Link href={showArchived ? "/projects" : "/projects?archived=1"} className="button buttonQuiet">
             {showArchived ? "Active projects" : "Include archived"}
           </Link>
-          <Link href="/projects/new" className="button buttonPrimary">New project</Link>
+          <OwnerOnly><Link href="/projects/new" className="button buttonPrimary">New project</Link></OwnerOnly>
         </div>
       </header>
 
@@ -43,7 +44,7 @@ export default async function ProjectsPage({
         <section className="emptyState">
           <h3>{showArchived ? "No projects recorded" : "Your production slate is clear"}</h3>
           <p>Create a project to connect a client, schedule production and keep the job moving.</p>
-          <div className="formActions"><Link href="/projects/new" className="button buttonPrimary">Start a project</Link></div>
+          <div className="formActions"><OwnerOnly><Link href="/projects/new" className="button buttonPrimary">Start a project</Link></OwnerOnly></div>
         </section>
       ) : (
         <section className={styles.grid} aria-label="Projects">

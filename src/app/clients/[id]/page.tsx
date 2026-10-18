@@ -1,3 +1,4 @@
+import { OwnerOnly } from "@/app/demo-viewer";
 import { requireWorkspaceRead } from "@/lib/access/server";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -36,7 +37,7 @@ export default async function ClientDetailPage({
     <main className="page">
       <header className="pageHeader">
         <div><Link href="/clients" className={styles.back}>Clients /</Link><span className="eyebrow">{client.kind === "organization" ? "Organisation" : "Individual"}</span><h1 className="pageTitle">{client.name}</h1><p className="pageLead">{client.preferred_contact_name ? `Primary contact: ${client.preferred_contact_name}` : "Client profile and production history."}</p></div>
-        <div className="pageActions"><Link href={`/projects/new?client=${client.id}`} className="button buttonPrimary">New project</Link></div>
+        <div className="pageActions"><OwnerOnly><Link href={`/projects/new?client=${client.id}`} className="button buttonPrimary">New project</Link></OwnerOnly></div>
       </header>
       {query.notice && <p className="notice">{query.notice}</p>}{query.error && <p className="notice" data-kind="error">{query.error}</p>}
 
@@ -51,7 +52,7 @@ export default async function ClientDetailPage({
           </dl>
           {client.notes && <p className={styles.notes}>{client.notes}</p>}
         </div>
-        <div className="panel panelPad">
+        <OwnerOnly><div className="panel panelPad">
           <details className="disclosure">
             <summary>Edit client profile</summary>
             <form action={updateClientAction} className={styles.editForm}>
@@ -71,7 +72,7 @@ export default async function ClientDetailPage({
               <button className="button buttonPrimary" type="submit">Save client</button>
             </form>
           </details>
-        </div>
+        </div></OwnerOnly>
       </section>
 
       <section className="section">

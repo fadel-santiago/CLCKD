@@ -1,4 +1,5 @@
 "use client";
+import { OwnerOnly } from "@/app/demo-viewer";
 
 import { useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -40,11 +41,11 @@ export function ProductionMutationForm({ action, children, className = "formPane
       } catch { setResult({ ok: false, message: "The connection was interrupted. Your inputs are still here; try again." }); }
     });
   }
-  return <form onSubmit={submit} noValidate className={className} aria-busy={pending}>
+  return <OwnerOnly><form onSubmit={submit} noValidate className={className} aria-busy={pending}>
     <fieldset className="productionFieldset" disabled={pending}>{children}</fieldset>
     {pending && <p className="fieldHint" role="status">Saving this change…</p>}
     {result && <p className="notice workflowNotice" data-kind={result.ok ? "success" : "error"} role={result.ok ? "status" : "alert"}>{result.message}</p>}
-  </form>;
+  </form></OwnerOnly>;
 }
 
 export function ProductionForm({ clients, defaultClientId }: { clients: Client[]; defaultClientId?: string }) {

@@ -1,3 +1,4 @@
+import { OwnerOnly } from "@/app/demo-viewer";
 import { requireWorkspaceRead } from "@/lib/access/server";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -31,7 +32,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         </div>
         <div className="pageActions">
           <Link href={showArchived ? "/clients" : "/clients?archived=1"} className="button buttonQuiet">{showArchived ? "Active clients" : "Include archived"}</Link>
-          <Link href="/clients/new" className="button buttonPrimary">New client</Link>
+          <OwnerOnly><Link href="/clients/new" className="button buttonPrimary">New client</Link></OwnerOnly>
         </div>
       </header>
 
@@ -42,7 +43,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
       </section>
 
       {visible.length === 0 ? (
-        <section className="emptyState"><h3>No clients in this view</h3><p>Add your first client, then turn the conversation into a project.</p><div className="formActions"><Link href="/clients/new" className="button buttonPrimary">Add a client</Link></div></section>
+        <section className="emptyState"><h3>No clients in this view</h3><p>Add your first client, then turn the conversation into a project.</p><div className="formActions"><OwnerOnly><Link href="/clients/new" className="button buttonPrimary">Add a client</Link></OwnerOnly></div></section>
       ) : (
         <section className={styles.grid} aria-label="Clients">
           {visible.map((client) => {
@@ -65,7 +66,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                 </dl>
                 <div className={styles.cardActions}>
                   <Link href={`/clients/${client.id}`} className="button buttonSecondary">Open client</Link>
-                  <ClientArchiveControl id={client.id} archived={archived} />
+                  <OwnerOnly><ClientArchiveControl id={client.id} archived={archived} /></OwnerOnly>
                 </div>
               </article>
             );

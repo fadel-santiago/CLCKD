@@ -1,3 +1,4 @@
+import { OwnerOnly } from "@/app/demo-viewer";
 import Link from "next/link";
 import { currencyExponent, formatMoney, supportedCurrencies } from "@/lib/operations/money";
 import {
@@ -56,7 +57,7 @@ export function ShootsSection({ projectId, shoots }: { projectId: string; shoots
             </div>
             <p>{shoot.location} <span className="muted">· {shoot.location_tz}</span></p>
             {shoot.crew_notes && <p className={styles.itemNotes}>{shoot.crew_notes}</p>}
-            <details className="disclosure">
+            <OwnerOnly><details className="disclosure">
               <summary>Edit shoot</summary>
               <form action={updateShootAction} className={styles.compactForm}>
                 <input type="hidden" name="id" value={shoot.id} />
@@ -68,12 +69,12 @@ export function ShootsSection({ projectId, shoots }: { projectId: string; shoots
                 <label className={styles.wide}>Crew notes<textarea className="textarea" name="crew_notes" defaultValue={shoot.crew_notes ?? ""} /></label>
                 <button className="button buttonSecondary" type="submit">Save shoot</button>
               </form>
-            </details>
+            </details></OwnerOnly>
           </article>
         ))}
         {shoots.length === 0 && <div className={styles.miniEmpty}>No shoot scheduled. Add the first production date below.</div>}
       </div>
-      <details className={styles.addDisclosure}>
+      <OwnerOnly><details className={styles.addDisclosure}>
         <summary>Add a shoot</summary>
         <form action={createShootAction} className={styles.compactForm}>
           <input type="hidden" name="project_id" value={projectId} />
@@ -84,7 +85,7 @@ export function ShootsSection({ projectId, shoots }: { projectId: string; shoots
           <label className={styles.wide}>Crew notes<textarea className="textarea" name="crew_notes" /></label>
           <button className="button buttonPrimary" type="submit">Schedule shoot</button>
         </form>
-      </details>
+      </details></OwnerOnly>
     </section>
   );
 }
@@ -102,7 +103,7 @@ export function TasksSection({ projectId, tasks }: { projectId: string; tasks: T
               <span className="statusBadge" data-tone={task.status === "blocked" ? "danger" : task.status === "done" ? "success" : undefined}>{TASK_STATUS_LABELS[task.status]}</span>
             </div>
             {task.description && <p className={styles.itemNotes}>{task.description}</p>}
-            <form action={updateTaskAction} className={styles.inlineAction}>
+            <OwnerOnly><form action={updateTaskAction} className={styles.inlineAction}>
               <input type="hidden" name="id" value={task.id} />
               <input type="hidden" name="project_id" value={projectId} />
               <input type="hidden" name="title" value={task.title} />
@@ -113,8 +114,8 @@ export function TasksSection({ projectId, tasks }: { projectId: string; tasks: T
                 {taskStatuses.map((status) => <option value={status} key={status}>{TASK_STATUS_LABELS[status]}</option>)}
               </select>
               <button className="button buttonSecondary" type="submit">Update</button>
-            </form>
-            <details className="disclosure">
+            </form></OwnerOnly>
+            <OwnerOnly><details className="disclosure">
               <summary>Edit task</summary>
               <form action={updateTaskAction} className={styles.compactForm}>
                 <input type="hidden" name="id" value={task.id} />
@@ -126,12 +127,12 @@ export function TasksSection({ projectId, tasks }: { projectId: string; tasks: T
                 <label className={styles.wide}>Details<textarea className="textarea" name="description" defaultValue={task.description ?? ""} /></label>
                 <button className="button buttonSecondary" type="submit">Save task</button>
               </form>
-            </details>
+            </details></OwnerOnly>
           </article>
         ))}
         {tasks.length === 0 && <div className={styles.miniEmpty}>No production tasks yet.</div>}
       </div>
-      <details className={styles.addDisclosure}>
+      <OwnerOnly><details className={styles.addDisclosure}>
         <summary>Add a task</summary>
         <form action={createTaskAction} className={styles.compactForm}>
           <input type="hidden" name="project_id" value={projectId} />
@@ -142,7 +143,7 @@ export function TasksSection({ projectId, tasks }: { projectId: string; tasks: T
           <label className={styles.wide}>Details<textarea className="textarea" name="description" /></label>
           <button className="button buttonPrimary" type="submit">Add task</button>
         </form>
-      </details>
+      </details></OwnerOnly>
     </section>
   );
 }
@@ -159,7 +160,7 @@ export function DeliverablesSection({ projectId, deliverables }: { projectId: st
               <span className="statusBadge" data-tone={item.review_status === "changes_requested" ? "danger" : item.review_status === "approved" ? "success" : "accent"}>{REVIEW_STATUS_LABELS[item.review_status]}</span>
             </div>
             <p>{item.due_date ? `Due ${item.due_date}` : "No due date"}{item.link ? <> · <Link className="subtleLink" href={item.link} target="_blank" rel="noreferrer">Open file</Link></> : null}</p>
-            <details className="disclosure">
+            <OwnerOnly><details className="disclosure">
               <summary>Update deliverable</summary>
               <form action={updateDeliverableAction} className={styles.compactForm}>
                 <input type="hidden" name="id" value={item.id} /><input type="hidden" name="project_id" value={projectId} />
@@ -172,12 +173,12 @@ export function DeliverablesSection({ projectId, deliverables }: { projectId: st
                 <label className={styles.wide}>Notes<textarea className="textarea" name="notes" defaultValue={item.notes ?? ""} /></label>
                 <button className="button buttonSecondary" type="submit">Save deliverable</button>
               </form>
-            </details>
+            </details></OwnerOnly>
           </article>
         ))}
         {deliverables.length === 0 && <div className={styles.miniEmpty}>Nothing in post yet. Add the first expected output.</div>}
       </div>
-      <details className={styles.addDisclosure}>
+      <OwnerOnly><details className={styles.addDisclosure}>
         <summary>Add a deliverable</summary>
         <form action={createDeliverableAction} className={styles.compactForm}>
           <input type="hidden" name="project_id" value={projectId} /><input type="hidden" name="review_status" value="not_submitted" /><input type="hidden" name="revision" value="1" />
@@ -188,7 +189,7 @@ export function DeliverablesSection({ projectId, deliverables }: { projectId: st
           <label className={styles.wide}>Notes<textarea className="textarea" name="notes" /></label>
           <button className="button buttonPrimary" type="submit">Add deliverable</button>
         </form>
-      </details>
+      </details></OwnerOnly>
     </section>
   );
 }
@@ -201,7 +202,7 @@ export function MoneySection({ projectId, quote, invoices }: { projectId: string
         <div className={styles.quoteBlock}>
           <span className="eyebrow">Quote</span>
           {quote ? <><strong>{formatMoney(quote.amount_minor_units, quote.currency)}</strong><p>{quote.valid_until ? `Valid until ${quote.valid_until}` : "No expiry date"}</p></> : <p className="muted">No quote recorded.</p>}
-          <details className="disclosure">
+          <OwnerOnly><details className="disclosure">
             <summary>{quote ? "Edit quote" : "Add quote"}</summary>
             <form action={upsertQuoteAction} className={styles.compactForm}>
               <input type="hidden" name="project_id" value={projectId} />
@@ -211,24 +212,24 @@ export function MoneySection({ projectId, quote, invoices }: { projectId: string
               <label className={styles.wide}>Notes<textarea className="textarea" name="notes" defaultValue={quote?.notes ?? ""} /></label>
               <button className="button buttonSecondary" type="submit">Save quote</button>
             </form>
-          </details>
+          </details></OwnerOnly>
         </div>
         <div className={styles.invoiceList}>
           {invoices.map((invoice) => (
             <article className={styles.invoice} key={invoice.id}>
               <div className={styles.itemLead}><div><strong>{invoice.reference}</strong><span>{formatMoney(invoice.amount_minor_units, invoice.currency)}</span></div><span className="statusBadge" data-tone={invoice.payment_status === "overdue" ? "danger" : invoice.payment_status === "paid" ? "success" : "warning"}>{PAYMENT_STATUS_LABELS[invoice.payment_status]}</span></div>
               <p>{INVOICE_STATUS_LABELS[invoice.invoice_status]} · {invoice.payment_due_date ? `Due ${invoice.payment_due_date}` : "No due date"}</p>
-              <details className="disclosure">
+              <OwnerOnly><details className="disclosure">
                 <summary>Update invoice</summary>
                 <InvoiceForm projectId={projectId} invoice={invoice} action={updateInvoiceAction} submitLabel="Save invoice" />
-              </details>
+              </details></OwnerOnly>
             </article>
           ))}
           {invoices.length === 0 && <div className={styles.miniEmpty}>No invoices recorded.</div>}
-          <details className={styles.addDisclosure}>
+          <OwnerOnly><details className={styles.addDisclosure}>
             <summary>Add an invoice</summary>
             <InvoiceForm projectId={projectId} action={createInvoiceAction} submitLabel="Add invoice" />
-          </details>
+          </details></OwnerOnly>
         </div>
       </div>
     </section>
@@ -237,7 +238,7 @@ export function MoneySection({ projectId, quote, invoices }: { projectId: string
 
 function InvoiceForm({ projectId, invoice, action, submitLabel }: { projectId: string; invoice?: Invoice; action: (formData: FormData) => Promise<never>; submitLabel: string }) {
   return (
-    <form action={action} className={styles.compactForm}>
+    <OwnerOnly><form action={action} className={styles.compactForm}>
       <input type="hidden" name="project_id" value={projectId} />{invoice && <input type="hidden" name="id" value={invoice.id} />}
       <label>Reference<input className="input" name="reference" required defaultValue={invoice?.reference ?? ""} placeholder="INV-2026-001" /></label>
       <label>Amount<input className="input" name="amount" inputMode="decimal" required defaultValue={invoice ? invoice.amount_minor_units / 10 ** currencyExponent(invoice.currency) : ""} /></label>
@@ -248,6 +249,6 @@ function InvoiceForm({ projectId, invoice, action, submitLabel }: { projectId: s
       <label>Payment due<input className="input" name="payment_due_date" type="date" defaultValue={invoice?.payment_due_date ?? ""} /></label>
       <label className={styles.wide}>Notes<textarea className="textarea" name="notes" defaultValue={invoice?.notes ?? ""} /></label>
       <button className="button buttonSecondary" type="submit">{submitLabel}</button>
-    </form>
+    </form></OwnerOnly>
   );
 }

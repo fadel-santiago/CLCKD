@@ -1,3 +1,4 @@
+import { OwnerOnly } from "@/app/demo-viewer";
 import { requireWorkspaceRead } from "@/lib/access/server";
 import Link from "next/link";
 import { getApplicationOperationsRepository, getApplicationProductionRepository } from "@/lib/db/application";
@@ -19,7 +20,7 @@ export function DashboardView({ dashboard }: { dashboard: DashboardData }) {
       <div className="sectionHeader"><span className="eyebrow">{first ? "Your current production" : "Room for something good"}</span>{first && <span className="statusBadge">{PROJECT_STATUS_LABELS[first.status]}</span>}</div>
       <h2>{first?.title ?? "Give your next project a home."}</h2>
       <p>{first ? first.client_name : "Start with a brief, define the outputs and keep every decision connected to the work."}</p>
-      {first ? <div className="formActions"><Link className="button buttonPrimary" href={`/projects/${first.id}`}>Open production ↗</Link><Link className="button buttonSecondary" href="/projects">View all projects</Link></div> : <div className="formActions"><Link className="button buttonPrimary" href="/projects/new">Create a production ↗</Link></div>}
+      {first ? <div className="formActions"><Link className="button buttonPrimary" href={`/projects/${first.id}`}>Open production ↗</Link><Link className="button buttonSecondary" href="/projects">View all projects</Link></div> : <div className="formActions"><OwnerOnly><Link className="button buttonPrimary" href="/projects/new">Create a production ↗</Link></OwnerOnly></div>}
     </section>
     <section className="section"><div className="sectionHeader"><h2 className="sectionTitle">What needs your attention?</h2><span className="sectionMeta">{dashboard.activeProjects.length} active projects · {reviews.length} outputs in review</span></div>
       <div className={styles.focusGrid}>
