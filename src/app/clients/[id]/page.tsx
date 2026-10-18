@@ -1,4 +1,4 @@
-import { requireOwnerPage } from "@/lib/access/server";
+import { requireWorkspaceRead } from "@/lib/access/server";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -13,7 +13,7 @@ import styles from "../clients.module.css";
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  await requireOwnerPage();
+  await requireWorkspaceRead();
   const { id } = await params;
   return { title: getApplicationClientRepository().getClientById(id)?.name ?? "Client" };
 }
@@ -25,7 +25,7 @@ export default async function ClientDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ notice?: string; error?: string }>;
 }) {
-  await requireOwnerPage();
+  await requireWorkspaceRead();
   const { id } = await params;
   const query = await searchParams;
   const client = getApplicationClientRepository().getClientById(id);

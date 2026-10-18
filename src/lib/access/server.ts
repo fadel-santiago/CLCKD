@@ -7,7 +7,8 @@ import { runPendingMigrations } from "../db/migrations";
 import { AccessDenied, createAccessRepository } from "./repository";
 import { validateLocalOrigin } from "./origin";
 import { readLocalSetupCode } from "./setup-code";
-import { assertMutationsAllowed } from "./demo-mode";
+import { assertMutationsAllowed, isReadOnlyDemo } from "./demo-mode";
+import { assertAnonymousDemoDatabase } from "../db/demo-database";
 
 export const OWNER_COOKIE = "clckd_owner";
 export const CLIENT_COOKIE = "clckd_client";
@@ -29,8 +30,19 @@ export async function requestOrigin(mutation = false) {
 export async function ownerToken() { return (await cookies()).get(OWNER_COOKIE)?.value; }
 export async function requireOwnerPage() {
   await requestOrigin();
+  if (isReadOnlyDemo()) throw new AccessDenied("Owner operations are unavailable in the read-only demo.");
   try { return accessRepository().owner(await ownerToken()); }
   catch (error) { if (error instanceof AccessDenied) redirect("/access"); throw error; }
+}
+/** Only explicitly selected read pages use this guard; it grants no owner identity. */
+export async function requireWorkspaceRead(): Promise<{ role: "demo_viewer" | "owner" }> {
+  await requestOrigin();
+  if (isReadOnlyDemo()) {
+    assertAnonymousDemoDatabase(getApplicationDatabase());
+    return { role: "demo_viewer" };
+  }
+  await requireOwnerPage();
+  return { role: "owner" };
 }
 export async function requireOwnerAction() {
   await requestOrigin(true);

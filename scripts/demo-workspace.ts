@@ -6,7 +6,7 @@ import { createClientRepository } from "../src/lib/clients/repository";
 import { createOperationsRepository } from "../src/lib/operations/repository";
 import { createProductionRepository } from "../src/lib/production/repository";
 
-import { DEMO_APPLICATION_ID, demoDatabasePath } from "../src/lib/db/demo-database";
+import { DEMO_APPLICATION_ID, DEMO_FIXTURE_DIGEST_KEY, demoDatabasePath, demoFixtureDigest } from "../src/lib/db/demo-database";
 export { demoDatabasePath } from "../src/lib/db/demo-database";
 
 function assertDemoContent(db: Database.Database): void {
@@ -124,6 +124,9 @@ export function seedDemoWorkspace(db: Database.Database, now = new Date()): bool
     production.confirmScope(completed, 1, true); production.completeShoot(completed, true); deliver(completed);
     for (const task of operations.listTasks(completed)) operations.updateTask(task.id, { project_id: completed, title: task.title, description: null, priority: task.priority, due_date: date(-2), status: "done" });
     production.wrapProject(completed);
+    // Only a fresh, successful synthetic seed can attest business-record content.
+    db.prepare("INSERT INTO kv_meta (key, value, updated_at) VALUES (?, ?, ?)")
+      .run(DEMO_FIXTURE_DIGEST_KEY, demoFixtureDigest(db), now.toISOString());
     return true;
   }).immediate();
 }

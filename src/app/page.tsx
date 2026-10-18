@@ -1,4 +1,4 @@
-import { requireOwnerPage } from "@/lib/access/server";
+import { requireWorkspaceRead } from "@/lib/access/server";
 import Link from "next/link";
 import { getApplicationOperationsRepository, getApplicationProductionRepository } from "@/lib/db/application";
 import { formatCalendarDate } from "@/lib/operations/dates";
@@ -33,7 +33,7 @@ export function DashboardView({ dashboard }: { dashboard: DashboardData }) {
 }
 
 export default async function HomePage() {
-  await requireOwnerPage();
+  await requireWorkspaceRead();
   getApplicationProductionRepository();
   return <DashboardView dashboard={getApplicationOperationsRepository().getDashboard()} />;
 }

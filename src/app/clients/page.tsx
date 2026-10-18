@@ -1,4 +1,4 @@
-import { requireOwnerPage } from "@/lib/access/server";
+import { requireWorkspaceRead } from "@/lib/access/server";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Clients" };
 
 export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ archived?: string }> }) {
-  await requireOwnerPage();
+  await requireWorkspaceRead();
   const params = await searchParams;
   const showArchived = params.archived === "1";
   const clients = getApplicationClientRepository().listClients({ includeArchived: true });

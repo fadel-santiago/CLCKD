@@ -1,11 +1,38 @@
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
+import { createHash } from "node:crypto";
 import { discoverMigrationPairs } from "./migrations";
 import { readSchemaVersion } from "./schema-version";
 
 // Shared with the fictional fixture generator; not a production setting.
 export const DEMO_APPLICATION_ID = 0x434c444d;
+export const DEMO_FIXTURE_DIGEST_KEY = "demo_fixture_sha256";
+
+/** Detect edits to seeded business records without including credentials or sessions. */
+export function demoFixtureDigest(db: Database.Database): string {
+  const hash = createHash("sha256");
+  const privateTables = new Set(["owner_account", "access_session", "access_attempt", "access_invitation", "invitation_output"]);
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all() as { name: string }[];
+  for (const { name } of tables) {
+    if (privateTables.has(name)) continue;
+    const quoted = '"' + name.replaceAll('"', '""') + '"';
+    const rows = name === "kv_meta"
+      ? db.prepare(`SELECT * FROM ${quoted} WHERE key != ?`).all(DEMO_FIXTURE_DIGEST_KEY)
+      : db.prepare(`SELECT * FROM ${quoted}`).all();
+    hash.update(JSON.stringify([name, rows.map(row => JSON.stringify(row)).sort()]));
+  }
+  return hash.digest("hex");
+}
+
+/** An edited/legacy fixture is never silently approved for anonymous publication. */
+export function assertAnonymousDemoDatabase(db: Database.Database): void {
+  if (!db.readonly || db.pragma("query_only", { simple: true }) !== 1) throw new Error("Anonymous demo access requires a read-only connection.");
+  const row = db.prepare("SELECT value FROM kv_meta WHERE key = ?").get(DEMO_FIXTURE_DIGEST_KEY) as { value: string } | undefined;
+  if (!row || !/^[a-f0-9]{64}$/.test(row.value) || row.value !== demoFixtureDigest(db)) {
+    throw new Error("Anonymous access requires an unchanged freshly seeded fictional demo. Existing records have not been exposed or reset.");
+  }
+}
 
 export function demoDatabasePath(value: string | undefined, cwd = process.cwd()): string {
   const root = fs.realpathSync(cwd);

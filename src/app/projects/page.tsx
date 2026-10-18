@@ -1,4 +1,4 @@
-import { requireOwnerPage } from "@/lib/access/server";
+import { requireWorkspaceRead } from "@/lib/access/server";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getApplicationOperationsRepository } from "@/lib/db/application";
@@ -15,7 +15,7 @@ export default async function ProjectsPage({
 }: {
   searchParams: Promise<{ archived?: string; notice?: string }>;
 }) {
-  await requireOwnerPage();
+  await requireWorkspaceRead();
   const params = await searchParams;
   const showArchived = params.archived === "1";
   const projects = getApplicationOperationsRepository().listProjects({ includeArchived: showArchived });
