@@ -7,19 +7,22 @@ import { runPendingMigrations } from "../db/migrations";
 import { AccessDenied, createAccessRepository } from "./repository";
 import { validateLocalOrigin } from "./origin";
 import { readLocalSetupCode } from "./setup-code";
+import { assertMutationsAllowed } from "./demo-mode";
 
 export const OWNER_COOKIE = "clckd_owner";
 export const CLIENT_COOKIE = "clckd_client";
 export function accessRepository() {
   const db = getApplicationDatabase();
-  runPendingMigrations(db, DEFAULT_MIGRATIONS_DIR);
+  if (!db.readonly) runPendingMigrations(db, DEFAULT_MIGRATIONS_DIR);
   return createAccessRepository(db);
 }
 export function localBootstrapCode() {
+  assertMutationsAllowed();
   const filename = path.join(path.dirname(process.env.CLCKD_DB_PATH ?? DEFAULT_DB_PATH), "owner-setup-code");
   return readLocalSetupCode(filename);
 }
 export async function requestOrigin(mutation = false) {
+  if (mutation) assertMutationsAllowed();
   const request = await headers();
   return validateLocalOrigin(request.get("host"), mutation ? request.get("origin") : null, mutation);
 }
@@ -34,6 +37,7 @@ export async function requireOwnerAction() {
   return accessRepository().owner(await ownerToken());
 }
 export async function setSessionCookie(role: "owner" | "client", session: { token: string; expires_at: string }) {
+  assertMutationsAllowed();
   const store = await cookies();
   store.set(role === "owner" ? OWNER_COOKIE : CLIENT_COOKIE, session.token, { httpOnly: true, sameSite: "strict", secure: false, path: "/", expires: new Date(session.expires_at) });
   // secure:false is exclusively for this enforced HTTP localhost pilot.

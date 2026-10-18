@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
+import { assertMutationsAllowed } from "../access/demo-mode";
 
 /**
  * Application database location (git-ignored `data/` directory).
@@ -45,6 +46,7 @@ export interface OpenDatabaseOptions {
  * sanctioned place that touches the filesystem for the persistence target.
  */
 export function openDatabase(options: OpenDatabaseOptions = {}): Database.Database {
+  assertMutationsAllowed();
   const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new Database(dbPath);

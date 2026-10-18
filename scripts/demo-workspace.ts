@@ -6,30 +6,8 @@ import { createClientRepository } from "../src/lib/clients/repository";
 import { createOperationsRepository } from "../src/lib/operations/repository";
 import { createProductionRepository } from "../src/lib/production/repository";
 
-// SQLite header marker, not a new application table or a production setting.
-const DEMO_APPLICATION_ID = 0x434c444d; // CLDM
-
-export function demoDatabasePath(value: string | undefined, cwd = process.cwd()): string {
-  const root = fs.realpathSync(cwd);
-  const target = path.join(root, "data/demo/clckd-demo.db");
-  const requested = value ? path.resolve(cwd, value) : null;
-  if (!requested || (requested !== target && requested !== path.resolve(cwd, "data/demo/clckd-demo.db"))) {
-    throw new Error("Set CLCKD_DB_PATH explicitly to this checkout's data/demo/clckd-demo.db. Other database paths are refused.");
-  }
-  for (const directory of [path.join(root, "data"), path.dirname(target)]) {
-    let stat: fs.Stats;
-    try { stat = fs.lstatSync(directory); }
-    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") continue; throw error; }
-    if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error("Demo directories must not be symlinks or files.");
-  }
-  for (const filename of [target, target + "-wal", target + "-shm", target + "-journal", path.join(path.dirname(target), "owner-setup-code")]) {
-    let stat: fs.Stats;
-    try { stat = fs.lstatSync(filename); }
-    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") continue; throw error; }
-    if (stat.isSymbolicLink() || !stat.isFile() || stat.nlink !== 1) throw new Error("Demo files must be regular files, not symlinks or hard links.");
-  }
-  return target;
-}
+import { DEMO_APPLICATION_ID, demoDatabasePath } from "../src/lib/db/demo-database";
+export { demoDatabasePath } from "../src/lib/db/demo-database";
 
 function assertDemoContent(db: Database.Database): void {
   const marker = db.pragma("application_id", { simple: true });

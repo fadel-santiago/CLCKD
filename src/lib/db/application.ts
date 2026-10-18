@@ -22,6 +22,8 @@ import path from "node:path";
 import type Database from "better-sqlite3";
 import { openDatabase } from "./index";
 import { runPendingMigrations } from "./migrations";
+import { isReadOnlyDemo } from "../access/demo-mode";
+import { demoDatabasePath, openReadOnlyDemoDatabase } from "./demo-database";
 import { createClientRepository, type ClientRepository } from "../clients/repository";
 import {
   createOperationsRepository,
@@ -112,8 +114,12 @@ function globalCache(): { [GLOBAL_CACHE_KEY]?: Database.Database } {
  * - No operation to close the application-wide connection is exposed.
  */
 export function getApplicationDatabase(): Database.Database {
+  const readOnly = isReadOnlyDemo();
+  // Validate before considering the cache: a previously writable connection
+  // must never bypass a newly enabled restriction or an unsafe path.
+  const demoPath = readOnly ? demoDatabasePath(process.env.CLCKD_DB_PATH) : undefined;
   const cached = globalCache()[GLOBAL_CACHE_KEY];
-  if (cached !== undefined) {
+  if (cached !== undefined && cached.readonly === readOnly && (!readOnly || cached.name === demoPath)) {
     try {
       // A closed connection throws on use — that is the liveness probe.
       cached.prepare(`SELECT 1`).get();
@@ -123,7 +129,9 @@ export function getApplicationDatabase(): Database.Database {
     }
   }
 
-  const db = openMigratedDatabase({ dbPath: process.env.CLCKD_DB_PATH });
+  const db = readOnly
+    ? openReadOnlyDemoDatabase(process.env.CLCKD_DB_PATH)
+    : openMigratedDatabase({ dbPath: process.env.CLCKD_DB_PATH });
   globalCache()[GLOBAL_CACHE_KEY] = db;
   return db;
 }
@@ -146,6 +154,6 @@ export function getApplicationOperationsRepository(): OperationsRepository {
 /** Apply newly added migrations to a live development connection before use. */
 export function getApplicationProductionRepository(): ProductionRepository {
   const db = getApplicationDatabase();
-  runPendingMigrations(db, DEFAULT_MIGRATIONS_DIR);
+  if (!db.readonly) runPendingMigrations(db, DEFAULT_MIGRATIONS_DIR);
   return createProductionRepository(db);
 }

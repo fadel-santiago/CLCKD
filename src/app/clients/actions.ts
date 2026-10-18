@@ -1,5 +1,6 @@
 "use server";
 import { requireOwnerAction } from "@/lib/access/server";
+import { ReadOnlyDemoError } from "@/lib/access/demo-mode";
 
 /**
  * Production Batch 2C2C — client server actions.
@@ -56,7 +57,14 @@ export async function archiveClientAction(
   previousState: ClientMutationState,
   formData: FormData
 ): Promise<ClientMutationState> {
-  await requireOwnerAction();
+  try {
+    await requireOwnerAction();
+  } catch (error) {
+    if (error instanceof ReadOnlyDemoError) {
+      return { status: "error", message: error.message, fieldErrors: {} };
+    }
+    throw error;
+  }
   void previousState;
   const repository = getApplicationClientRepository();
   const result = archiveClientFromForm(repository, formData);

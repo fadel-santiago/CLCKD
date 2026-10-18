@@ -3,13 +3,17 @@ import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 import { demoDatabasePath, openDemoDatabase, seedDemoWorkspace } from "./demo-workspace";
 import { readLocalSetupCode } from "../src/lib/access/setup-code";
+import { assertMutationsAllowed, isReadOnlyDemo } from "../src/lib/access/demo-mode";
+import { openReadOnlyDemoDatabase } from "../src/lib/db/demo-database";
 
 try {
   const action = process.argv[2];
   if (!["setup", "seed", "dev"].includes(action)) throw new Error("Use npm run demo:setup, demo:seed or demo:dev.");
   // Deliberately do not load .env files: the demo target must be explicit.
   const dbPath = demoDatabasePath(process.env.CLCKD_DB_PATH);
-  const db = openDemoDatabase(dbPath);
+  const readOnly = isReadOnlyDemo();
+  if (action !== "dev") assertMutationsAllowed();
+  const db = readOnly ? openReadOnlyDemoDatabase(dbPath) : openDemoDatabase(dbPath);
   try {
     if (action === "setup") {
       if (db.prepare("SELECT 1 FROM owner_account WHERE id = 1").get()) console.log("Existing demo owner preserved. Sign in with your own passphrase.");

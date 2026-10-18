@@ -81,15 +81,18 @@ export function createProductionRepository(db: Database.Database, dependencies: 
   }
   function settings(id: string): ProductionSettings {
     const value = project(id, false);
-    db.prepare(`INSERT OR IGNORE INTO production_project (project_id, created_at, updated_at) VALUES (?, ?, ?)`)
+    if (!db.readonly) db.prepare(`INSERT OR IGNORE INTO production_project (project_id, created_at, updated_at) VALUES (?, ?, ?)`)
       .run(id, value.created_at, value.updated_at);
-    return db.prepare(`SELECT * FROM production_project WHERE project_id = ?`).get(id) as ProductionSettings;
+    const result = db.prepare(`SELECT * FROM production_project WHERE project_id = ?`).get(id) as ProductionSettings | undefined;
+    if (!result) throw new Error("Prepare the production settings before opening the read-only demo.");
+    return result;
   }
   function event(projectId: string, kind: string, details: string | null = null, outputId: string | null = null, revision: number | null = null, attributedTo: string | null = null): void {
     db.prepare(`INSERT INTO production_event (id, project_id, deliverable_id, revision, kind, attributed_to, details, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(generateId(), projectId, outputId, revision, kind, attributedTo, details, timestamp());
   }
   function ensureOutput(value: Deliverable): void {
+    if (db.readonly) return;
     db.prepare(`INSERT OR IGNORE INTO output_spec (deliverable_id, created_at, updated_at) VALUES (?, ?, ?)`)
       .run(value.id, value.created_at, value.updated_at);
     db.prepare(`INSERT OR IGNORE INTO output_version (deliverable_id, revision, title, link, review_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)

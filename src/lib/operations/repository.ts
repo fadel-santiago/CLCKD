@@ -188,6 +188,7 @@ export function createOperationsRepository(
   };
 
   const refreshOverdueInvoices = (): void => {
+    if (db.readonly) return; // A demo displays its prepared snapshot without refreshing it.
     const settings = db
       .prepare(`SELECT key, value FROM kv_meta WHERE key IN ('default_timezone')`)
       .all() as Array<{ key: string; value: string }>;
