@@ -1,9 +1,13 @@
 <div align="center">
 
-<h1>CLCKD</h1>
+<h1>CLCKD — Clicked. Clocked. Done.</h1>
 <p><strong>Creative production, organized.</strong></p>
 
 <p>A local-first production workspace for independent videographers,<br />photographers, and creative studios.</p>
+
+<p><strong>Explore the portfolio case study</strong><br />
+<a href="https://fadelsantiago.com/apps/clckd" lang="en">English</a> ·
+<a href="https://fadelsantiago.com/fr/apps/clckd" lang="fr">Français</a></p>
 
 <p>
 <img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-171b20?style=flat-square" />
@@ -15,6 +19,11 @@
 <p><a href="#getting-started">Run locally</a> · <a href="#core-features">Explore the workspace</a> · <a href="#architecture">Architecture</a> · <a href="#testing-and-engineering-quality">Engineering</a></p>
 
 </div>
+
+**Live case study, local application.** The EN/FR pages above showcase CLCKD's
+workflow, architecture and real screenshots with fictional data. They do not
+host the application or provide access to a live workspace. To use CLCKD,
+follow [Getting started](#getting-started) and run it locally.
 
 ![CLCKD dashboard with an active campaign, upcoming shoot, review queue and tasks to follow up](docs/screenshots/01-dashboard.png)
 
@@ -191,7 +200,7 @@ requires access to that host.
 ### Requirements
 
 - **Node.js 22.23.3** and npm; use the repository's `.nvmrc` with an existing nvm installation.
-- GitHub authentication with access to this currently private repository.
+- Git for cloning the repository.
 - No Odysseus, Docker, remote database, API keys or preconfigured credentials.
 
 ```bash
