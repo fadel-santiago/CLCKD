@@ -8,6 +8,9 @@
   },
   "scripts": {
     "setup:local": "tsx scripts/setup-local.ts",
+    "demo:setup": "tsx scripts/demo.ts setup",
+    "demo:seed": "tsx scripts/demo.ts seed",
+    "demo:dev": "tsx scripts/demo.ts dev",
     "dev": "next dev -H 127.0.0.1 -p 3300",
     "start": "next start -H 127.0.0.1 -p 3300",
     "build": "next build",

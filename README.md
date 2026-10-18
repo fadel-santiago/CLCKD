@@ -130,6 +130,10 @@ This is responsive web UI, not a native app.*
 Capture conditions and visual verification limits are documented in
 [the screenshot notes](docs/screenshots/README.md).
 
+For a reusable fictional recording workspace, follow the
+[local demo guide](docs/demo-workspace.md). It uses a separate database, your
+own interactively chosen credentials, and localhost port 3301.
+
 ## How CLCKD works
 
 **Client → Project → Production → Review → Delivery → Completion**
